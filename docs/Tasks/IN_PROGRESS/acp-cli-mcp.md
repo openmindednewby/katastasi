@@ -66,3 +66,17 @@ src/
 - [ ] `ACP_BACKEND=direct`: port n8n `mdToAdf` converter to TS, call Atlassian REST directly
 
 ## Status: STAGE 1 + DOCS + UI-SESSIONS CODE-COMPLETE (Jira/Confluence live e2e still pending real n8n)
+
+## UI workbench upgrade (DONE)
+Decisions: independent tabs + shared library; history on meaningful events (10-deep);
+templates mechanism-only (no built-ins).
+- [x] Templates store (acp.templates): save current form as named template, apply, delete
+- [x] History (acp.history): rolling 10, snapshot before load/apply/import/clear/run; restore
+- [x] Undo/redo: per-tab in-memory stacks (cap 50); buttons + Ctrl+Z / Ctrl+Shift+Z (native in fields)
+- [x] Multi-tab: per-tab live state in sessionStorage; shared lists in localStorage; `storage`
+      event refreshes dropdowns across tabs without clobbering the live form
+- [x] Toolbar: Templates / Sessions / History / Undo-Redo / Export-Import groups
+- [x] Verified in Chrome: undo/redo (multi-step), template save+apply, history-on-clear,
+      and TWO-TAB sync (tab2 save → tab1 dropdown updates, tab1 live form preserved). Zero console errors.
+- [x] docs/SESSIONS.md rewritten to cover the full workbench
+- export shapes bumped to v2 (acp-config / acp-library); import stays back-compatible w/ legacy acp-sessions

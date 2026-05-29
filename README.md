@@ -380,7 +380,7 @@ See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for the full roadmap.
 - Template registry with JSON Schema validation
 - Team context profiles with schema and example
 - **`acp` CLI + MCP server** — publish agent/hand-written markdown to Jira & Confluence (Stage 1: via n8n publish webhooks). See **[Install guide](docs/INSTALL.md)** · **[CLI & MCP guide](docs/CLI_AND_MCP.md)** · **[ready-to-use setup prompt](docs/SETUP_PROMPT.md)**.
-- **Browser UI sessions** — save/load/export/import form configs + auto-remember the last one (localStorage). See **[Sessions guide](docs/SESSIONS.md)**.
+- **Browser UI workbench** — reusable templates, named sessions, a rolling 10-deep auto-history, undo/redo, and multi-tab-safe shared storage (independent tabs, shared library). See **[Workbench guide](docs/SESSIONS.md)**.
 
 **Next up:**
 - **Template routing in n8n** — wire the registry so `--template` flag selects the right prompt and output routing

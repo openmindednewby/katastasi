@@ -77,13 +77,15 @@
     .panel-task { border-left: 3px solid #22c55e; }
     .panel-confluence-page { border-left: 3px solid #6366f1; }
     .small-label { display: block; font-size: 0.75rem; font-weight: 600; color: #94a3b8; margin-bottom: 0.25rem; }
-    .session-bar { display:flex; flex-wrap:wrap; align-items:center; gap:0.4rem; padding:0.6rem 0.75rem; margin-bottom:1rem; background:#1e293b; border:1px solid #334155; border-radius:0.5rem; }
-    .session-bar-label { font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:#94a3b8; margin-right:0.25rem; }
-    .session-bar select#session-select { flex:0 1 200px; padding:0.35rem 0.5rem; font-size:0.75rem; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:0.375rem; }
-    .session-name-input { flex:0 1 180px; padding:0.35rem 0.5rem; font-size:0.75rem; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:0.375rem; }
-    .session-btn { padding:0.3rem 0.65rem !important; font-size:0.72rem !important; }
-    .session-sep { width:1px; align-self:stretch; background:#334155; margin:0 0.15rem; }
-    .session-status { font-size:0.72rem; color:#86efac; margin-left:auto; }
+    .session-bar { display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem 0.75rem; padding:0.6rem 0.75rem; margin-bottom:1rem; background:#1e293b; border:1px solid #334155; border-radius:0.5rem; }
+    .sb-group { display:inline-flex; align-items:center; gap:0.3rem; }
+    .session-bar-label { font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:#94a3b8; margin-right:0.1rem; }
+    .session-bar select { flex:0 1 auto; max-width:210px; padding:0.35rem 0.5rem; font-size:0.75rem; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:0.375rem; }
+    .session-name-input { flex:0 1 150px; padding:0.35rem 0.5rem; font-size:0.75rem; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:0.375rem; }
+    .session-btn { padding:0.3rem 0.6rem !important; font-size:0.72rem !important; }
+    .session-btn:disabled { opacity:0.4; cursor:not-allowed; }
+    .session-sep { width:1px; align-self:stretch; background:#334155; margin:0 0.1rem; }
+    .session-status { font-size:0.72rem; color:#86efac; margin-left:auto; min-width:90px; text-align:right; }
     .session-status.error { color:#fca5a5; }
   </style>
 </head>
@@ -93,20 +95,43 @@
     <p class="subtitle">Generate AI analysis, push markdown to Confluence, create Jira tickets <span class="pill pill-local">LOCAL</span></p>
 
     <div class="session-bar" id="session-bar">
-      <span class="session-bar-label">Sessions</span>
-      <select id="session-select" title="Saved sessions">
-        <option value="">— saved sessions —</option>
-      </select>
-      <button class="btn-secondary session-btn" onclick="loadSelectedSession()" title="Load the selected session into the form">Load</button>
-      <button class="btn-secondary session-btn" onclick="deleteSelectedSession()" title="Delete the selected session">Delete</button>
+      <div class="sb-group">
+        <span class="session-bar-label">Templates</span>
+        <select id="tpl-select" title="Reusable starting points"><option value="">— templates —</option></select>
+        <button class="btn-secondary session-btn" onclick="applyTemplate()" title="Load the selected template into the form (undoable)">Apply</button>
+        <button class="btn-secondary session-btn" onclick="deleteTemplate()" title="Delete the selected template">Delete</button>
+      </div>
       <span class="session-sep"></span>
-      <input id="session-name" class="session-name-input" placeholder="Name this session…" />
-      <button class="btn-secondary session-btn" onclick="saveCurrentSession()" title="Save the current form as a named session">Save</button>
+      <div class="sb-group">
+        <span class="session-bar-label">Sessions</span>
+        <select id="session-select" title="Saved sessions"><option value="">— sessions —</option></select>
+        <button class="btn-secondary session-btn" onclick="loadSelectedSession()" title="Load the selected session into the form (undoable)">Load</button>
+        <button class="btn-secondary session-btn" onclick="deleteSelectedSession()" title="Delete the selected session">Delete</button>
+      </div>
       <span class="session-sep"></span>
-      <button class="btn-secondary session-btn" onclick="exportCurrentConfig()" title="Download the current form as a .json file">Export current</button>
-      <button class="btn-secondary session-btn" onclick="exportAllSessions()" title="Download all saved sessions as a .json file">Export all</button>
-      <button class="btn-secondary session-btn" onclick="importSessionsFile()" title="Import sessions / a config from a .json file">Import</button>
-      <input type="file" id="session-file-input" accept=".json,application/json" style="display:none;" />
+      <div class="sb-group">
+        <span class="session-bar-label">History</span>
+        <select id="history-select" title="Last 10 auto-snapshots (before load / clear / run)"><option value="">— recent (auto) —</option></select>
+        <button class="btn-secondary session-btn" onclick="restoreHistory()" title="Restore the selected snapshot (undoable)">Restore</button>
+      </div>
+      <span class="session-sep"></span>
+      <div class="sb-group">
+        <input id="save-name" class="session-name-input" placeholder="Name…" title="Name for Save session / Save template" />
+        <button class="btn-secondary session-btn" onclick="saveCurrentSession()" title="Save the current form as a named session">Save session</button>
+        <button class="btn-secondary session-btn" onclick="saveCurrentTemplate()" title="Save the current form as a reusable template">Save template</button>
+      </div>
+      <span class="session-sep"></span>
+      <div class="sb-group">
+        <button class="btn-secondary session-btn" id="undo-btn" onclick="undo()" title="Undo (Ctrl+Z outside a text field)">↶ Undo</button>
+        <button class="btn-secondary session-btn" id="redo-btn" onclick="redo()" title="Redo (Ctrl+Shift+Z outside a text field)">↷ Redo</button>
+      </div>
+      <span class="session-sep"></span>
+      <div class="sb-group">
+        <button class="btn-secondary session-btn" onclick="exportCurrentConfig()" title="Download the current form as a .json file">Export</button>
+        <button class="btn-secondary session-btn" onclick="exportAll()" title="Download all templates + sessions as a .json file">Export all</button>
+        <button class="btn-secondary session-btn" onclick="importSessionsFile()" title="Import templates / sessions / a config from a .json file">Import</button>
+        <input type="file" id="session-file-input" accept=".json,application/json" style="display:none;" />
+      </div>
       <span id="session-status" class="session-status"></span>
     </div>
 
@@ -419,7 +444,7 @@
       fileInput.onchange = function() {
         if (!this.files.length) return;
         const reader = new FileReader();
-        reader.onload = function(e) { document.getElementById(textareaId).value = e.target.result; };
+        reader.onload = function(e) { document.getElementById(textareaId).value = e.target.result; if (typeof scheduleCommit === 'function') scheduleCommit(); };
         reader.readAsText(this.files[0]);
       };
       fileInput.click();
@@ -434,7 +459,7 @@
       fileInput.onchange = function() {
         if (!this.files.length) return;
         const reader = new FileReader();
-        reader.onload = function(e) { textarea.value = e.target.result; };
+        reader.onload = function(e) { textarea.value = e.target.result; if (typeof scheduleCommit === 'function') scheduleCommit(); };
         reader.readAsText(this.files[0]);
       };
       fileInput.click();
@@ -456,6 +481,7 @@
         '<div class="form-group" style="margin-bottom:0;"><span class="small-label">Task Content — markdown</span>' +
         '<textarea class="task-markdown" rows="6" placeholder="# Task Title\n\nTask description...\n\n## Acceptance Criteria\n- ...\n\n## Estimate\nM\n\n## Component\nbackend"></textarea></div>';
       document.getElementById('task-list').appendChild(div);
+      if (typeof scheduleCommit === 'function') scheduleCommit();
     }
 
     function removeTask(btn) {
@@ -465,6 +491,7 @@
         if (title) title.innerHTML = 'Task ' + (i + 1) + ' <span class="pill" style="background:#14532d; color:#86efac;">Story</span>';
       });
       taskCount = document.querySelectorAll('#task-list .task-entry').length;
+      if (typeof scheduleCommit === 'function') scheduleCommit();
     }
 
     // --- Dynamic section entries ---
@@ -485,6 +512,7 @@
         '<div class="form-group" style="margin-bottom:0;"><span class="small-label">Page Content — markdown</span>' +
         '<textarea class="conf-page-markdown" rows="8" placeholder="# Page Title\n\nPage content..."></textarea></div>';
       document.getElementById('confluence-page-list').appendChild(div);
+      if (typeof scheduleCommit === 'function') scheduleCommit();
     }
 
     function removeConfPage(btn) {
@@ -494,6 +522,7 @@
         if (title) title.textContent = 'Page ' + (i + 1);
       });
       confPageCount = document.querySelectorAll('#confluence-page-list .confluence-page-entry').length;
+      if (typeof scheduleCommit === 'function') scheduleCommit();
     }
 
     function importMdToConfPage(btn) {
@@ -505,7 +534,7 @@
       fileInput.onchange = function() {
         if (!this.files.length) return;
         const reader = new FileReader();
-        reader.onload = function(e) { textarea.value = e.target.result; };
+        reader.onload = function(e) { textarea.value = e.target.result; if (typeof scheduleCommit === 'function') scheduleCommit(); };
         reader.readAsText(this.files[0]);
       };
       fileInput.click();
@@ -807,6 +836,7 @@
 
     async function runPipeline() {
       const pipeline = document.getElementById('pipeline').value;
+      if (typeof pushHistory === 'function') pushHistory('run: ' + pipeline);
 
       if (pipeline === 'markdown-to-jira') return runJiraPipeline();
       if (pipeline === 'markdown-to-jira-single') return runJiraSinglePipeline();
@@ -1104,6 +1134,7 @@
     }
 
     function clearForm() {
+      if (typeof pushHistory === 'function') pushHistory('before clear');
       document.getElementById('description').value = '';
       document.getElementById('context').value = '';
       document.getElementById('status').className = 'status';
@@ -1140,14 +1171,23 @@
       iterativeMode = false;
       currentIteration = 0;
       currentAnalysis = null;
-      if (typeof saveLastConfig === 'function') saveLastConfig();
+      if (typeof commit === 'function') commit();
     }
 
     // =====================================================================
-    // Sessions: remember last config (localStorage) + named save/load/export/import
+    // Workbench: templates + named sessions + auto-history (10) + undo/redo.
+    // Multi-tab safe: each tab keeps its own live form (sessionStorage); the
+    // shared library (templates/sessions/history) syncs across tabs via the
+    // storage event without clobbering any tab's in-progress edits.
     // =====================================================================
-    const LS_LAST = 'acp.lastConfig';
-    const LS_SESSIONS = 'acp.sessions';
+    const LS_LAST = 'acp.lastConfig';        // global last-edited fallback (any tab)
+    const LS_SESSIONS = 'acp.sessions';      // { name: snapshot }              (shared)
+    const LS_TEMPLATES = 'acp.templates';    // { name: snapshot }              (shared)
+    const LS_HISTORY = 'acp.history';        // [ {at,label,snapshot} ] newest  (shared)
+    const SS_LIVE = 'acp.tab.live';          // this tab's live state (sessionStorage)
+    const HISTORY_MAX = 10;
+    const UNDO_MAX = 50;
+    const COMMIT_DEBOUNCE_MS = 400;
 
     function lsGet(key, fallback) {
       try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -1157,10 +1197,19 @@
       try { localStorage.setItem(key, JSON.stringify(val)); return true; }
       catch (e) { return false; }
     }
+    function ssGet(key, fallback) {
+      try { const v = sessionStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+      catch (e) { return fallback; }
+    }
+    function ssSet(key, val) {
+      try { sessionStorage.setItem(key, JSON.stringify(val)); return true; }
+      catch (e) { return false; }
+    }
     function escHtml(s) {
       return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
     function tstamp() { return new Date().toISOString().replace(/[T:]/g, '-').split('.')[0]; }
+    function stable(s) { if (!s) return ''; const { savedAt, ...rest } = s; return JSON.stringify(rest); }
 
     let sessionStatusTimer = null;
     function setSessionStatus(msg, isError) {
@@ -1260,25 +1309,115 @@
       if (typeof onTemplateChange === 'function') onTemplateChange();
     }
 
-    function saveLastConfig() { lsSet(LS_LAST, collectState()); }
+    // ---- Per-tab live state + undo/redo ----
+    let currentSnapshot = null;
+    let undoStack = [];
+    let redoStack = [];
+    let suppressCommit = false;
+    let commitTimer = null;
 
-    // ---- Named sessions ----
-    function getSessions() { return lsGet(LS_SESSIONS, {}); }
-    function refreshSessionDropdown(selectName) {
-      const sel = document.getElementById('session-select');
-      const sessions = getSessions();
-      const names = Object.keys(sessions).sort((a, b) => a.localeCompare(b));
-      sel.innerHTML = '<option value="">— saved sessions —</option>' +
-        names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
-      if (selectName && sessions[selectName]) sel.value = selectName;
+    function persistLive(snap) { ssSet(SS_LIVE, snap); lsSet(LS_LAST, snap); }
+    function updateUndoButtons() {
+      const u = document.getElementById('undo-btn'); const r = document.getElementById('redo-btn');
+      if (u) u.disabled = undoStack.length === 0;
+      if (r) r.disabled = redoStack.length === 0;
     }
+    function applyStateSilently(state) {
+      suppressCommit = true;
+      try { applyState(state); } finally { suppressCommit = false; }
+    }
+    // Capture an edit (debounced via scheduleCommit). Pushes the prior state onto the undo stack.
+    function commit() {
+      if (suppressCommit) return;
+      const snap = collectState();
+      if (currentSnapshot && stable(snap) === stable(currentSnapshot)) { persistLive(snap); return; }
+      if (currentSnapshot) { undoStack.push(currentSnapshot); if (undoStack.length > UNDO_MAX) undoStack.shift(); }
+      redoStack = [];
+      currentSnapshot = snap;
+      persistLive(snap);
+      updateUndoButtons();
+    }
+    function scheduleCommit() {
+      if (commitTimer) clearTimeout(commitTimer);
+      commitTimer = setTimeout(commit, COMMIT_DEBOUNCE_MS);
+    }
+    function setCurrent(state) { currentSnapshot = state; persistLive(state); updateUndoButtons(); }
+
+    function undo() {
+      if (!undoStack.length) { setSessionStatus('Nothing to undo.', true); return; }
+      redoStack.push(currentSnapshot);
+      const prev = undoStack.pop();
+      applyStateSilently(prev); setCurrent(prev);
+      setSessionStatus('Undid last change.');
+    }
+    function redo() {
+      if (!redoStack.length) { setSessionStatus('Nothing to redo.', true); return; }
+      undoStack.push(currentSnapshot);
+      const next = redoStack.pop();
+      applyStateSilently(next); setCurrent(next);
+      setSessionStatus('Redid change.');
+    }
+    // Apply a saved/loaded state as a single undoable change.
+    function applyLoadedState(state) {
+      if (currentSnapshot) { undoStack.push(currentSnapshot); if (undoStack.length > UNDO_MAX) undoStack.shift(); }
+      redoStack = [];
+      applyStateSilently(state);
+      currentSnapshot = collectState();
+      persistLive(currentSnapshot);
+      updateUndoButtons();
+    }
+
+    // ---- History (rolling 10, captured on meaningful events) ----
+    function getHistory() { return lsGet(LS_HISTORY, []); }
+    function pushHistory(label) {
+      const snap = collectState();
+      const hist = getHistory();
+      if (hist.length && stable(hist[0].snapshot) === stable(snap)) return; // dedupe consecutive
+      hist.unshift({ at: new Date().toISOString(), label: label || 'snapshot', snapshot: snap });
+      while (hist.length > HISTORY_MAX) hist.pop();
+      lsSet(LS_HISTORY, hist);
+      refreshHistoryDropdown();
+    }
+    function refreshHistoryDropdown() {
+      const sel = document.getElementById('history-select');
+      if (!sel) return;
+      const hist = getHistory();
+      sel.innerHTML = '<option value="">— recent (auto) —</option>' +
+        hist.map((h, i) => {
+          const t = (h.at || '').replace('T', ' ').slice(5, 16);
+          return `<option value="${i}">${escHtml(h.label)} · ${t}</option>`;
+        }).join('');
+    }
+    function restoreHistory() {
+      const sel = document.getElementById('history-select');
+      if (sel.value === '') { setSessionStatus('Pick a snapshot to restore.', true); return; }
+      const entry = getHistory()[Number(sel.value)];
+      if (!entry) { setSessionStatus('Snapshot not found.', true); return; }
+      applyLoadedState(entry.snapshot);
+      setSessionStatus(`Restored "${entry.label}".`);
+    }
+
+    // ---- Named library (sessions + templates share the same snapshot shape) ----
+    function getSessions() { return lsGet(LS_SESSIONS, {}); }
+    function getTemplates() { return lsGet(LS_TEMPLATES, {}); }
+    function refreshNamedDropdown(selId, store, placeholder, selectName) {
+      const sel = document.getElementById(selId);
+      if (!sel) return;
+      const names = Object.keys(store).sort((a, b) => a.localeCompare(b));
+      sel.innerHTML = `<option value="">${placeholder}</option>` +
+        names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+      if (selectName && store[selectName]) sel.value = selectName;
+    }
+    function refreshSessionDropdown(name) { refreshNamedDropdown('session-select', getSessions(), '— sessions —', name); }
+    function refreshTemplateDropdown(name) { refreshNamedDropdown('tpl-select', getTemplates(), '— templates —', name); }
+    function readSaveName() { return document.getElementById('save-name').value.trim(); }
+
     function saveCurrentSession() {
-      const name = document.getElementById('session-name').value.trim();
-      if (!name) { setSessionStatus('Enter a session name first.', true); return; }
-      const sessions = getSessions();
-      const existed = !!sessions[name];
-      sessions[name] = collectState();
-      if (!lsSet(LS_SESSIONS, sessions)) { setSessionStatus('Could not save (localStorage blocked).', true); return; }
+      const name = readSaveName();
+      if (!name) { setSessionStatus('Enter a name first.', true); return; }
+      const store = getSessions(); const existed = !!store[name];
+      store[name] = collectState();
+      if (!lsSet(LS_SESSIONS, store)) { setSessionStatus('Could not save (storage blocked).', true); return; }
       refreshSessionDropdown(name);
       setSessionStatus(`Session "${name}" ${existed ? 'updated' : 'saved'}.`);
     }
@@ -1287,19 +1426,43 @@
       if (!name) { setSessionStatus('Pick a session to load.', true); return; }
       const s = getSessions()[name];
       if (!s) { setSessionStatus('Session not found.', true); return; }
-      applyState(s);
-      document.getElementById('session-name').value = name;
-      saveLastConfig();
-      setSessionStatus(`Loaded "${name}".`);
+      pushHistory('before load session');
+      applyLoadedState(s);
+      document.getElementById('save-name').value = name;
+      setSessionStatus(`Loaded session "${name}".`);
     }
     function deleteSelectedSession() {
       const name = document.getElementById('session-select').value;
       if (!name) { setSessionStatus('Pick a session to delete.', true); return; }
-      const sessions = getSessions();
-      delete sessions[name];
-      lsSet(LS_SESSIONS, sessions);
+      const store = getSessions(); delete store[name]; lsSet(LS_SESSIONS, store);
       refreshSessionDropdown();
-      setSessionStatus(`Deleted "${name}".`);
+      setSessionStatus(`Deleted session "${name}".`);
+    }
+
+    function saveCurrentTemplate() {
+      const name = readSaveName();
+      if (!name) { setSessionStatus('Enter a name first.', true); return; }
+      const store = getTemplates(); const existed = !!store[name];
+      store[name] = collectState();
+      if (!lsSet(LS_TEMPLATES, store)) { setSessionStatus('Could not save (storage blocked).', true); return; }
+      refreshTemplateDropdown(name);
+      setSessionStatus(`Template "${name}" ${existed ? 'updated' : 'saved'}.`);
+    }
+    function applyTemplate() {
+      const name = document.getElementById('tpl-select').value;
+      if (!name) { setSessionStatus('Pick a template to apply.', true); return; }
+      const t = getTemplates()[name];
+      if (!t) { setSessionStatus('Template not found.', true); return; }
+      pushHistory('before apply template');
+      applyLoadedState(t);
+      setSessionStatus(`Applied template "${name}".`);
+    }
+    function deleteTemplate() {
+      const name = document.getElementById('tpl-select').value;
+      if (!name) { setSessionStatus('Pick a template to delete.', true); return; }
+      const store = getTemplates(); delete store[name]; lsSet(LS_TEMPLATES, store);
+      refreshTemplateDropdown();
+      setSessionStatus(`Deleted template "${name}".`);
     }
 
     // ---- Export / import ----
@@ -1311,14 +1474,16 @@
       URL.revokeObjectURL(url);
     }
     function exportCurrentConfig() {
-      downloadJson({ type: 'acp-config', version: 1, config: collectState() }, `acp-config-${tstamp()}.json`);
+      downloadJson({ type: 'acp-config', version: 2, config: collectState() }, `acp-config-${tstamp()}.json`);
       setSessionStatus('Exported current config.');
     }
-    function exportAllSessions() {
-      const sessions = getSessions();
-      if (!Object.keys(sessions).length) { setSessionStatus('No saved sessions to export.', true); return; }
-      downloadJson({ type: 'acp-sessions', version: 1, sessions }, `acp-sessions-${tstamp()}.json`);
-      setSessionStatus('Exported all sessions.');
+    function exportAll() {
+      const templates = getTemplates(); const sessions = getSessions();
+      if (!Object.keys(templates).length && !Object.keys(sessions).length) {
+        setSessionStatus('Nothing saved to export.', true); return;
+      }
+      downloadJson({ type: 'acp-library', version: 2, templates, sessions }, `acp-library-${tstamp()}.json`);
+      setSessionStatus('Exported templates + sessions.');
     }
     function importSessionsFile() {
       const input = document.getElementById('session-file-input');
@@ -1336,42 +1501,73 @@
       };
       input.click();
     }
-    function mergeSessions(incoming) {
-      const sessions = getSessions();
-      let count = 0;
-      for (const [name, cfg] of Object.entries(incoming)) {
-        if (cfg && typeof cfg === 'object') { sessions[name] = cfg; count++; }
+    function mergeInto(key, refreshFn, incoming) {
+      const store = lsGet(key, {}); let count = 0;
+      for (const [name, cfg] of Object.entries(incoming || {})) {
+        if (cfg && typeof cfg === 'object') { store[name] = cfg; count++; }
       }
-      lsSet(LS_SESSIONS, sessions);
-      refreshSessionDropdown();
-      setSessionStatus(`Imported ${count} session${count === 1 ? '' : 's'}.`);
+      lsSet(key, store); refreshFn();
+      return count;
     }
     function handleImported(parsed) {
-      if (parsed && parsed.type === 'acp-sessions' && parsed.sessions) { mergeSessions(parsed.sessions); return; }
-      if (parsed && parsed.type === 'acp-config' && parsed.config) {
-        applyState(parsed.config); saveLastConfig(); setSessionStatus('Imported config into the form.'); return;
+      if (parsed && parsed.type === 'acp-library') {
+        const t = mergeInto(LS_TEMPLATES, refreshTemplateDropdown, parsed.templates);
+        const s = mergeInto(LS_SESSIONS, refreshSessionDropdown, parsed.sessions);
+        setSessionStatus(`Imported ${t} template(s) + ${s} session(s).`); return;
       }
-      if (parsed && parsed.pipeline) { applyState(parsed); saveLastConfig(); setSessionStatus('Imported config into the form.'); return; }
-      if (parsed && typeof parsed === 'object') { mergeSessions(parsed); return; }
+      if (parsed && parsed.type === 'acp-sessions' && parsed.sessions) {
+        const s = mergeInto(LS_SESSIONS, refreshSessionDropdown, parsed.sessions);
+        setSessionStatus(`Imported ${s} session(s).`); return;
+      }
+      if (parsed && parsed.type === 'acp-config' && parsed.config) {
+        pushHistory('before import'); applyLoadedState(parsed.config);
+        setSessionStatus('Imported config into the form.'); return;
+      }
+      if (parsed && parsed.pipeline) {
+        pushHistory('before import'); applyLoadedState(parsed);
+        setSessionStatus('Imported config into the form.'); return;
+      }
+      if (parsed && typeof parsed === 'object') {
+        const s = mergeInto(LS_SESSIONS, refreshSessionDropdown, parsed);
+        setSessionStatus(`Imported ${s} session(s).`); return;
+      }
       setSessionStatus('Unrecognised file format.', true);
     }
 
-    // ---- Auto-save (debounced) + restore on load ----
-    let autoSaveTimer = null;
-    function scheduleAutoSave() {
-      if (autoSaveTimer) clearTimeout(autoSaveTimer);
-      autoSaveTimer = setTimeout(saveLastConfig, 400);
-    }
-    (function initSessions() {
+    // ---- Multi-tab sync: refresh shared lists when another tab changes them ----
+    window.addEventListener('storage', (e) => {
+      if (e.key === LS_TEMPLATES) refreshTemplateDropdown();
+      else if (e.key === LS_SESSIONS) refreshSessionDropdown();
+      else if (e.key === LS_HISTORY) refreshHistoryDropdown();
+      // LS_LAST is intentionally ignored — each tab keeps its own live form.
+    });
+
+    // ---- Init ----
+    (function initWorkbench() {
+      refreshTemplateDropdown();
       refreshSessionDropdown();
-      const last = lsGet(LS_LAST, null);
-      if (last) { try { applyState(last); } catch (e) { /* ignore corrupt state */ } }
-      document.addEventListener('input', scheduleAutoSave);
-      document.addEventListener('change', scheduleAutoSave);
+      refreshHistoryDropdown();
+      // Restore this tab's live state: sessionStorage (reload of same tab), else the
+      // global last-edited config (a brand-new tab inherits your most recent work).
+      const live = ssGet(SS_LIVE, null) || lsGet(LS_LAST, null);
+      if (live) { try { applyStateSilently(live); } catch (e) { /* ignore corrupt state */ } }
+      currentSnapshot = collectState();
+      ssSet(SS_LIVE, currentSnapshot);
+      updateUndoButtons();
+      document.addEventListener('input', scheduleCommit);
+      document.addEventListener('change', scheduleCommit);
     })();
 
     document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 'Enter') runPipeline();
+      if (e.ctrlKey && e.key === 'Enter') { runPipeline(); return; }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      // Inside a text field, let the browser's native per-field undo/redo win.
+      const inField = ['TEXTAREA', 'INPUT'].includes((e.target && e.target.tagName) || '');
+      if (inField) return;
+      if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
     });
   </script>
 </body>

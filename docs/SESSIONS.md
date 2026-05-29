@@ -1,63 +1,89 @@
-# Browser UI — Sessions (save / export / remember)
+# Browser UI — Workbench (templates, sessions, history, undo/redo)
 
-The `trigger.html` UI keeps your work between visits and lets you manage reusable configurations.
-Everything is stored locally in your browser via `localStorage` — nothing is sent anywhere.
+The `trigger.html` toolbar turns the form into a workbench. Everything is stored locally in your
+browser — nothing is sent anywhere. A **snapshot** captures the entire form:
 
-## What gets remembered
+- Pipeline + template selection, AI description + context
+- Jira: epic key, component, assignee, reporter, epic markdown, and every task row
+- Single Jira ticket fields
+- Confluence: parent, labels, and every page row (id / title / markdown)
 
-A **session** is a full snapshot of the form:
+## The five toolbar groups
 
-- Pipeline + template selection
-- AI fields: description, additional context
-- Jira: epic key, component, assignee, reporter, epic markdown, and every task row (key / assignee / markdown)
-- Single Jira ticket: issue type, component, assignee, reporter, keys, markdown
-- Confluence: parent page, labels, and every page row (id / title / markdown)
+| Group | Controls | What it does |
+|-------|----------|--------------|
+| **Templates** | dropdown · Apply · Delete | Reusable starting points you maintain (e.g. a Confluence parent + children layout). Apply loads one into the form. |
+| **Sessions** | dropdown · Load · Delete | Named saved work. Load restores it. |
+| **History** | dropdown · Restore | The last **10** auto-snapshots, taken on meaningful events (see below). Restore rolls back to one. |
+| *(save)* | name field · Save session · Save template | Type a name, then save the current form as a session **or** a template. Re-saving a name overwrites it. |
+| **Undo / Redo** | ↶ Undo · ↷ Redo | Step backward/forward through your edits. |
+| *(I/O)* | Export · Export all · Import | Export current config, export the whole library, or import either. |
 
-## The Sessions bar
+## Templates vs sessions vs history
 
-A toolbar sits at the top of the page:
+- **Templates** — *starting points you reuse.* Build a layout once (e.g. a parent page + 3 child
+  pages), `Save template` as "Confluence page group", then `Apply` it whenever you start similar work.
+  No built-in templates ship — you create your own from whatever's in the form.
+- **Sessions** — *saved work you return to,* by name.
+- **History** — *automatic safety net.* You don't manage it; it just keeps your last 10 states.
 
-| Control | What it does |
-|---------|--------------|
-| **saved sessions** dropdown | Pick a previously saved session |
-| **Load** | Load the selected session into the form |
-| **Delete** | Remove the selected session |
-| **Name this session…** + **Save** | Save the current form as a named session (re-saving the same name overwrites it) |
-| **Export current** | Download the current form as `acp-config-<timestamp>.json` |
-| **Export all** | Download every saved session as `acp-sessions-<timestamp>.json` |
-| **Import** | Load sessions or a single config from a `.json` file |
+Applying a template, loading a session, or restoring history is itself **undoable**.
 
-## Remember-last (automatic)
+## History — what triggers a snapshot
 
-As you type, the form auto-saves to `localStorage` (debounced). When you reopen or refresh the page,
-your last configuration is restored automatically — no action needed. **Clear** also resets the
-remembered state.
+A new history entry (max 10, newest first, consecutive duplicates skipped) is captured on
+**meaningful events**, not every keystroke:
+
+- before loading a session
+- before applying a template
+- before importing a config
+- on **Clear**
+- on **Run / publish** (labelled `run: <pipeline>`)
+
+Fine-grained keystroke-level changes are covered by **undo/redo** instead.
+
+## Undo / redo
+
+- Buttons in the toolbar always operate at the **whole-form** level (text edits, adding/removing
+  task or page rows, applying templates/sessions, clearing).
+- Keyboard: **Ctrl+Z** = undo, **Ctrl+Shift+Z** (or **Ctrl+Y**) = redo — but **only when focus is
+  outside a text field**, so your normal in-field typing undo still works as usual.
+- Up to 50 steps are kept, per tab, in memory (cleared when the tab closes).
+
+## Multiple tabs
+
+Tabs are **independent but share a library**:
+
+- Each tab edits **its own** form and has **its own** undo/redo and auto-save — opening the same page
+  in two tabs never lets one clobber the other.
+- Templates, sessions, and history are **shared** and sync **live**: save a template in one tab and
+  it immediately appears in the other tabs' dropdowns.
+- On reload, a tab restores its own last state; a brand-new tab inherits your most recent work.
 
 ## Export / import formats
 
-Two shapes are produced and accepted:
-
 ```jsonc
-// Export current  — a single configuration
-{ "type": "acp-config", "version": 1, "config": { /* form snapshot */ } }
+// Export        — a single configuration
+{ "type": "acp-config",  "version": 2, "config": { /* snapshot */ } }
 
-// Export all — a map of named sessions
-{ "type": "acp-sessions", "version": 1, "sessions": { "My session": { /* snapshot */ } } }
+// Export all    — your whole library
+{ "type": "acp-library", "version": 2, "templates": { /* name: snapshot */ }, "sessions": { /* … */ } }
 ```
 
-**Import** is lenient — it accepts either shape above, a bare config (any object with a `pipeline`
-field, loaded straight into the form), or a bare `{ name: snapshot }` map (merged into your saved
-sessions). Importing sessions **merges** by name (same name overwrites).
-
-Use this to share a set of starter configurations with a teammate: *Export all* → send the JSON →
-they *Import* it.
+**Import** is lenient — it accepts `acp-library` (merges templates + sessions), legacy `acp-sessions`,
+`acp-config` / any bare object with a `pipeline` field (loaded into the form), or a bare
+`{ name: snapshot }` map (merged into sessions). Merges are by name (same name overwrites). Use
+*Export all* → share the JSON → *Import* to hand a teammate your starter templates.
 
 ## Storage keys
 
-| Key | Contents |
-|-----|----------|
-| `acp.lastConfig` | The auto-saved last form state |
-| `acp.sessions` | `{ name: snapshot }` map of named sessions |
+| Key | Scope | Contents |
+|-----|-------|----------|
+| `acp.templates` | localStorage (shared) | `{ name: snapshot }` reusable templates |
+| `acp.sessions` | localStorage (shared) | `{ name: snapshot }` saved sessions |
+| `acp.history` | localStorage (shared) | last 10 `{ at, label, snapshot }`, newest first |
+| `acp.lastConfig` | localStorage | global last-edited fallback for fresh tabs |
+| `acp.tab.live` | sessionStorage (per-tab) | this tab's live form (survives reload, isolated per tab) |
 
-Clearing browser site data for the page removes both. If `localStorage` is unavailable (some
-locked-down `file://` contexts), the bar degrades gracefully and shows an error instead of saving.
+If `localStorage` is unavailable (some locked-down `file://` contexts) the toolbar degrades
+gracefully and reports an error instead of saving.
