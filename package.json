@@ -19,6 +19,7 @@
     "prepare": "npm run build",
     "dev": "tsc -p tsconfig.json --watch",
     "start:mcp": "node dist/mcp/server.js",
+    "deploy:workflows": "node scripts/deploy-workflows.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test"
   },
