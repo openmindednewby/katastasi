@@ -1,0 +1,38 @@
+{
+  "name": "ai-confluence-pipeline",
+  "version": "0.1.0",
+  "description": "CLI + MCP server to publish agent-written markdown to Jira and Confluence via the ai-confluence-pipeline n8n workflows.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "ai-confluence-pipeline": "dist/cli/index.js",
+    "acp": "dist/cli/index.js",
+    "acp-mcp": "dist/mcp/server.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "dev": "tsc -p tsconfig.json --watch",
+    "start:mcp": "node dist/mcp/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

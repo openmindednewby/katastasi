@@ -77,12 +77,38 @@
     .panel-task { border-left: 3px solid #22c55e; }
     .panel-confluence-page { border-left: 3px solid #6366f1; }
     .small-label { display: block; font-size: 0.75rem; font-weight: 600; color: #94a3b8; margin-bottom: 0.25rem; }
+    .session-bar { display:flex; flex-wrap:wrap; align-items:center; gap:0.4rem; padding:0.6rem 0.75rem; margin-bottom:1rem; background:#1e293b; border:1px solid #334155; border-radius:0.5rem; }
+    .session-bar-label { font-size:0.7rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:#94a3b8; margin-right:0.25rem; }
+    .session-bar select#session-select { flex:0 1 200px; padding:0.35rem 0.5rem; font-size:0.75rem; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:0.375rem; }
+    .session-name-input { flex:0 1 180px; padding:0.35rem 0.5rem; font-size:0.75rem; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:0.375rem; }
+    .session-btn { padding:0.3rem 0.65rem !important; font-size:0.72rem !important; }
+    .session-sep { width:1px; align-self:stretch; background:#334155; margin:0 0.15rem; }
+    .session-status { font-size:0.72rem; color:#86efac; margin-left:auto; }
+    .session-status.error { color:#fca5a5; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>AI Confluence Pipeline</h1>
     <p class="subtitle">Generate AI analysis, push markdown to Confluence, create Jira tickets <span class="pill pill-local">LOCAL</span></p>
+
+    <div class="session-bar" id="session-bar">
+      <span class="session-bar-label">Sessions</span>
+      <select id="session-select" title="Saved sessions">
+        <option value="">— saved sessions —</option>
+      </select>
+      <button class="btn-secondary session-btn" onclick="loadSelectedSession()" title="Load the selected session into the form">Load</button>
+      <button class="btn-secondary session-btn" onclick="deleteSelectedSession()" title="Delete the selected session">Delete</button>
+      <span class="session-sep"></span>
+      <input id="session-name" class="session-name-input" placeholder="Name this session…" />
+      <button class="btn-secondary session-btn" onclick="saveCurrentSession()" title="Save the current form as a named session">Save</button>
+      <span class="session-sep"></span>
+      <button class="btn-secondary session-btn" onclick="exportCurrentConfig()" title="Download the current form as a .json file">Export current</button>
+      <button class="btn-secondary session-btn" onclick="exportAllSessions()" title="Download all saved sessions as a .json file">Export all</button>
+      <button class="btn-secondary session-btn" onclick="importSessionsFile()" title="Import sessions / a config from a .json file">Import</button>
+      <input type="file" id="session-file-input" accept=".json,application/json" style="display:none;" />
+      <span id="session-status" class="session-status"></span>
+    </div>
 
     <div class="row">
       <div class="form-group">
@@ -1114,7 +1140,235 @@
       iterativeMode = false;
       currentIteration = 0;
       currentAnalysis = null;
+      if (typeof saveLastConfig === 'function') saveLastConfig();
     }
+
+    // =====================================================================
+    // Sessions: remember last config (localStorage) + named save/load/export/import
+    // =====================================================================
+    const LS_LAST = 'acp.lastConfig';
+    const LS_SESSIONS = 'acp.sessions';
+
+    function lsGet(key, fallback) {
+      try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+      catch (e) { return fallback; }
+    }
+    function lsSet(key, val) {
+      try { localStorage.setItem(key, JSON.stringify(val)); return true; }
+      catch (e) { return false; }
+    }
+    function escHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function tstamp() { return new Date().toISOString().replace(/[T:]/g, '-').split('.')[0]; }
+
+    let sessionStatusTimer = null;
+    function setSessionStatus(msg, isError) {
+      const el = document.getElementById('session-status');
+      el.textContent = msg;
+      el.className = 'session-status' + (isError ? ' error' : '');
+      if (sessionStatusTimer) clearTimeout(sessionStatusTimer);
+      sessionStatusTimer = setTimeout(() => { el.textContent = ''; el.className = 'session-status'; }, 4000);
+    }
+
+    // ---- Snapshot / restore the whole form ----
+    function collectState() {
+      const g = id => (document.getElementById(id)?.value ?? '');
+      const tasks = [];
+      document.querySelectorAll('#task-list .task-entry').forEach(e => {
+        tasks.push({
+          key: e.querySelector('.task-key')?.value || '',
+          assignee: e.querySelector('.task-assignee')?.value || '',
+          markdown: e.querySelector('.task-markdown')?.value || ''
+        });
+      });
+      const pages = [];
+      document.querySelectorAll('#confluence-page-list .confluence-page-entry').forEach(e => {
+        pages.push({
+          id: e.querySelector('.conf-page-id')?.value || '',
+          title: e.querySelector('.conf-page-title')?.value || '',
+          markdown: e.querySelector('.conf-page-markdown')?.value || ''
+        });
+      });
+      return {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        pipeline: g('pipeline'),
+        template: g('template'),
+        description: g('description'),
+        context: g('context'),
+        jira: {
+          epicKey: g('epic-key'), component: g('jira-component'), assignee: g('jira-assignee'),
+          reporter: g('jira-reporter'), epicMarkdown: g('epic-markdown'), tasks
+        },
+        single: {
+          issueType: g('single-issue-type'), component: g('single-component'), assignee: g('single-assignee'),
+          reporter: g('single-reporter'), issueKey: g('single-issue-key'), parentKey: g('single-parent-key'),
+          markdown: g('single-ticket-markdown')
+        },
+        confluence: { parent: g('confluence-parent'), labels: g('confluence-labels'), pages }
+      };
+    }
+
+    function setTaskEntries(tasks) {
+      const list = document.getElementById('task-list');
+      list.querySelectorAll('.task-entry').forEach(e => e.remove());
+      taskCount = 0;
+      const arr = (tasks && tasks.length) ? tasks : [{}];
+      arr.forEach(t => {
+        addTask();
+        const entry = list.querySelector('.task-entry:last-child');
+        entry.querySelector('.task-key').value = t.key || '';
+        entry.querySelector('.task-assignee').value = t.assignee || '';
+        entry.querySelector('.task-markdown').value = t.markdown || '';
+      });
+    }
+
+    function setConfPageEntries(pages) {
+      const list = document.getElementById('confluence-page-list');
+      list.querySelectorAll('.confluence-page-entry').forEach(e => e.remove());
+      confPageCount = 0;
+      const arr = (pages && pages.length) ? pages : [{}];
+      arr.forEach(p => {
+        addConfPage();
+        const entry = list.querySelector('.confluence-page-entry:last-child');
+        entry.querySelector('.conf-page-id').value = p.id || '';
+        entry.querySelector('.conf-page-title').value = p.title || '';
+        entry.querySelector('.conf-page-markdown').value = p.markdown || '';
+      });
+    }
+
+    function applyState(s) {
+      if (!s) return;
+      const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
+      set('pipeline', s.pipeline);
+      set('template', s.template);
+      set('description', s.description);
+      set('context', s.context);
+      const j = s.jira || {};
+      set('epic-key', j.epicKey); set('jira-component', j.component); set('jira-assignee', j.assignee);
+      set('jira-reporter', j.reporter); set('epic-markdown', j.epicMarkdown);
+      setTaskEntries(j.tasks);
+      const si = s.single || {};
+      set('single-issue-type', si.issueType || 'Story'); set('single-component', si.component);
+      set('single-assignee', si.assignee); set('single-reporter', si.reporter);
+      set('single-issue-key', si.issueKey); set('single-parent-key', si.parentKey); set('single-ticket-markdown', si.markdown);
+      const c = s.confluence || {};
+      set('confluence-parent', c.parent); set('confluence-labels', c.labels);
+      setConfPageEntries(c.pages);
+      if (typeof onPipelineChange === 'function') onPipelineChange();
+      if (typeof onTemplateChange === 'function') onTemplateChange();
+    }
+
+    function saveLastConfig() { lsSet(LS_LAST, collectState()); }
+
+    // ---- Named sessions ----
+    function getSessions() { return lsGet(LS_SESSIONS, {}); }
+    function refreshSessionDropdown(selectName) {
+      const sel = document.getElementById('session-select');
+      const sessions = getSessions();
+      const names = Object.keys(sessions).sort((a, b) => a.localeCompare(b));
+      sel.innerHTML = '<option value="">— saved sessions —</option>' +
+        names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+      if (selectName && sessions[selectName]) sel.value = selectName;
+    }
+    function saveCurrentSession() {
+      const name = document.getElementById('session-name').value.trim();
+      if (!name) { setSessionStatus('Enter a session name first.', true); return; }
+      const sessions = getSessions();
+      const existed = !!sessions[name];
+      sessions[name] = collectState();
+      if (!lsSet(LS_SESSIONS, sessions)) { setSessionStatus('Could not save (localStorage blocked).', true); return; }
+      refreshSessionDropdown(name);
+      setSessionStatus(`Session "${name}" ${existed ? 'updated' : 'saved'}.`);
+    }
+    function loadSelectedSession() {
+      const name = document.getElementById('session-select').value;
+      if (!name) { setSessionStatus('Pick a session to load.', true); return; }
+      const s = getSessions()[name];
+      if (!s) { setSessionStatus('Session not found.', true); return; }
+      applyState(s);
+      document.getElementById('session-name').value = name;
+      saveLastConfig();
+      setSessionStatus(`Loaded "${name}".`);
+    }
+    function deleteSelectedSession() {
+      const name = document.getElementById('session-select').value;
+      if (!name) { setSessionStatus('Pick a session to delete.', true); return; }
+      const sessions = getSessions();
+      delete sessions[name];
+      lsSet(LS_SESSIONS, sessions);
+      refreshSessionDropdown();
+      setSessionStatus(`Deleted "${name}".`);
+    }
+
+    // ---- Export / import ----
+    function downloadJson(obj, filename) {
+      const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+    function exportCurrentConfig() {
+      downloadJson({ type: 'acp-config', version: 1, config: collectState() }, `acp-config-${tstamp()}.json`);
+      setSessionStatus('Exported current config.');
+    }
+    function exportAllSessions() {
+      const sessions = getSessions();
+      if (!Object.keys(sessions).length) { setSessionStatus('No saved sessions to export.', true); return; }
+      downloadJson({ type: 'acp-sessions', version: 1, sessions }, `acp-sessions-${tstamp()}.json`);
+      setSessionStatus('Exported all sessions.');
+    }
+    function importSessionsFile() {
+      const input = document.getElementById('session-file-input');
+      input.value = '';
+      input.onchange = function () {
+        if (!this.files.length) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          let parsed;
+          try { parsed = JSON.parse(e.target.result); }
+          catch (err) { setSessionStatus('Invalid JSON file.', true); return; }
+          handleImported(parsed);
+        };
+        reader.readAsText(this.files[0]);
+      };
+      input.click();
+    }
+    function mergeSessions(incoming) {
+      const sessions = getSessions();
+      let count = 0;
+      for (const [name, cfg] of Object.entries(incoming)) {
+        if (cfg && typeof cfg === 'object') { sessions[name] = cfg; count++; }
+      }
+      lsSet(LS_SESSIONS, sessions);
+      refreshSessionDropdown();
+      setSessionStatus(`Imported ${count} session${count === 1 ? '' : 's'}.`);
+    }
+    function handleImported(parsed) {
+      if (parsed && parsed.type === 'acp-sessions' && parsed.sessions) { mergeSessions(parsed.sessions); return; }
+      if (parsed && parsed.type === 'acp-config' && parsed.config) {
+        applyState(parsed.config); saveLastConfig(); setSessionStatus('Imported config into the form.'); return;
+      }
+      if (parsed && parsed.pipeline) { applyState(parsed); saveLastConfig(); setSessionStatus('Imported config into the form.'); return; }
+      if (parsed && typeof parsed === 'object') { mergeSessions(parsed); return; }
+      setSessionStatus('Unrecognised file format.', true);
+    }
+
+    // ---- Auto-save (debounced) + restore on load ----
+    let autoSaveTimer = null;
+    function scheduleAutoSave() {
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(saveLastConfig, 400);
+    }
+    (function initSessions() {
+      refreshSessionDropdown();
+      const last = lsGet(LS_LAST, null);
+      if (last) { try { applyState(last); } catch (e) { /* ignore corrupt state */ } }
+      document.addEventListener('input', scheduleAutoSave);
+      document.addEventListener('change', scheduleAutoSave);
+    })();
 
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'Enter') runPipeline();

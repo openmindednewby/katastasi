@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ai-confluence-pipeline": {
+      "command": "node",
+      "args": ["dist/mcp/server.js"],
+      "env": {}
+    }
+  }
+}

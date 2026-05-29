@@ -379,13 +379,16 @@ See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for the full roadmap.
 - 13 prompt templates across 3 categories (full-pipeline, confluence-only, jira-only)
 - Template registry with JSON Schema validation
 - Team context profiles with schema and example
+- **`acp` CLI + MCP server** — publish agent/hand-written markdown to Jira & Confluence (Stage 1: via n8n publish webhooks). See **[Install guide](docs/INSTALL.md)** · **[CLI & MCP guide](docs/CLI_AND_MCP.md)** · **[ready-to-use setup prompt](docs/SETUP_PROMPT.md)**.
+- **Browser UI sessions** — save/load/export/import form configs + auto-remember the last one (localStorage). See **[Sessions guide](docs/SESSIONS.md)**.
 
 **Next up:**
 - **Template routing in n8n** — wire the registry so `--template` flag selects the right prompt and output routing
 - **Confluence page templates** — polished layouts with macros, panels, and TOC per template type
 - **Jira structure support** — epic-with-stories, phased-epics, story-with-subtasks in n8n
 - **Smart template selection** — AI auto-detects the best template from the description
-- **CLI tool** — `acp analyze --template new-feature "Add notifications"`
+- **Direct-REST backend** — `ACP_BACKEND=direct` so the CLI/MCP skip n8n (Stage 2)
+- **`acp analyze`** — AI generation via the CLI (currently the agent generates; tool publishes)
 
 ## Contributing
 
