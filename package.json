@@ -1,60 +1,27 @@
 {
-  "name": "katastasi",
-  "version": "0.4.0",
-  "description": "Katastasi — open-source documentation, task-tracking, and testing framework. Local-first markdown source of truth; agent-native (MCP); syncs to Jira/Confluence/issues/CI. Answers: what is the real status — is this actually done and verified?",
+  "name": "ai-confluence-pipeline",
+  "version": "0.1.0",
+  "description": "CLI + MCP server to publish agent-written markdown to Jira and Confluence via the ai-confluence-pipeline n8n workflows.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "katastasi": "dist/cli/index.js",
-    "kat": "dist/cli/index.js",
+    "ai-confluence-pipeline": "dist/cli/index.js",
     "acp": "dist/cli/index.js",
-    "katastasi-mcp": "dist/mcp/server.js",
     "acp-mcp": "dist/mcp/server.js"
   },
   "files": [
     "dist",
-    "assets",
     "README.md",
-    "VISION.md",
-    "CHANGELOG.md",
     "LICENSE"
   ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/openmindednewby/katastasi.git"
-  },
-  "homepage": "https://github.com/openmindednewby/katastasi#readme",
-  "bugs": {
-    "url": "https://github.com/openmindednewby/katastasi/issues"
-  },
-  "keywords": [
-    "requirements",
-    "traceability",
-    "rtm",
-    "testing",
-    "task-tracking",
-    "documentation",
-    "jira",
-    "confluence",
-    "mcp",
-    "ai-agents",
-    "ci",
-    "markdown"
-  ],
-  "engines": {
-    "node": ">=20"
-  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
     "dev": "tsc -p tsconfig.json --watch",
     "start:mcp": "node dist/mcp/server.js",
     "deploy:workflows": "node scripts/deploy-workflows.mjs",
-    "docker:build": "bash scripts/docker-build.sh",
-    "docker:deploy": "bash scripts/docker-deploy-remote.sh",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test",
-    "publish:both": "bash scripts/publish-npm.sh"
+    "test": "node --test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
@@ -65,5 +32,8 @@
   "devDependencies": {
     "@types/node": "^22.7.0",
     "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
