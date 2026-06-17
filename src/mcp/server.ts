@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { publishJira } from '../core/jira.js';
 import { publishConfluence } from '../core/confluence.js';
 import { pullJira, pullConfluence } from '../core/pull.js';
+import { pushFolder } from '../core/push.js';
 
 const server = new McpServer({ name: 'ai-confluence-pipeline', version: '0.1.0' });
 
@@ -168,6 +169,37 @@ server.registerTool(
       ];
       return {
         content: [{ type: 'text' as const, text: lines.join('\n') }],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    } catch (err) {
+      return errorResult(err);
+    }
+  },
+);
+
+server.registerTool(
+  'push_folder',
+  {
+    title: 'Push folder (markdown → Jira/Confluence, recursive)',
+    description:
+      'Re-publish a folder previously produced by jira_to_markdown / confluence_to_markdown back to ' +
+      'Atlassian, recursively (incl. sub-tasks / child pages). Reads acp-pull.json, converts each ' +
+      'markdown file to ADF / storage, and updates the matching issue/page in place via direct REST. ' +
+      'Entries without a key/id are created. Needs the matching JIRA_* / CONFLUENCE_* creds in .env.',
+    inputSchema: {
+      dir: z.string().describe('Folder containing acp-pull.json (from a previous pull).'),
+      dryRun: z.boolean().optional().describe('Report intended create/update actions without calling Atlassian.'),
+    },
+  },
+  async (args) => {
+    try {
+      const result = await pushFolder(args.dir, { dryRun: args.dryRun });
+      const rows =
+        result.kind === 'jira'
+          ? (result.issues ?? []).map((i) => `[${i.key}] ${i.action}: ${i.file}`)
+          : (result.pages ?? []).map((p) => `[${p.pageId}] ${p.action}: ${p.dir}/page.md`);
+      return {
+        content: [{ type: 'text' as const, text: [`Pushed ${rows.length} item(s) from ${result.dir}`, ...rows].join('\n') }],
         structuredContent: result as unknown as Record<string, unknown>,
       };
     } catch (err) {

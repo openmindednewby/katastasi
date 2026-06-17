@@ -44,6 +44,7 @@ export interface ConfluencePage {
   title?: string;
   body?: { storage?: { value?: string } };
   space?: { key?: string };
+  version?: { number?: number };
   _links?: { webui?: string; base?: string };
 }
 
@@ -93,12 +94,37 @@ export async function getChildIssues(parentKey: string, creds = getJiraCreds()):
   return issues;
 }
 
-/** GET a single Confluence page with its storage body. */
+/** GET a single Confluence page with its storage body and version. */
 export async function getPage(id: string, creds = getConfluenceCreds()): Promise<ConfluencePage> {
   return getJson<ConfluencePage>(
     creds,
     `/wiki/rest/api/content/${encodeURIComponent(id)}?expand=body.storage,version,space`,
   );
+}
+
+/** A created/updated issue identifier from a write call. */
+export interface IssueRef {
+  key: string;
+}
+
+/** Create a Jira issue. `fields` is the full `fields` object (project/summary/description/…). */
+export async function createIssue(fields: Record<string, unknown>, creds = getJiraCreds()): Promise<IssueRef> {
+  return sendJson<IssueRef>(creds, 'POST', '/rest/api/3/issue', { fields });
+}
+
+/** Update a Jira issue's fields in place. Returns no body (204). */
+export async function updateIssue(key: string, fields: Record<string, unknown>, creds = getJiraCreds()): Promise<void> {
+  await sendJson<unknown>(creds, 'PUT', `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields }, true);
+}
+
+/** Create a Confluence page. `body` is the full content payload. */
+export async function createPage(body: Record<string, unknown>, creds = getConfluenceCreds()): Promise<ConfluencePage> {
+  return sendJson<ConfluencePage>(creds, 'POST', '/wiki/rest/api/content', body);
+}
+
+/** Update a Confluence page in place. `body` must carry the bumped `version.number`. */
+export async function updatePage(id: string, body: Record<string, unknown>, creds = getConfluenceCreds()): Promise<ConfluencePage> {
+  return sendJson<ConfluencePage>(creds, 'PUT', `/wiki/rest/api/content/${encodeURIComponent(id)}`, body);
 }
 
 /** Return the direct child pages of a Confluence page, each with its storage body. */
@@ -125,17 +151,36 @@ export function pageWebUrl(page: ConfluencePage, creds: AtlassianCreds): string 
   return `${creds.baseUrl}/wiki/pages/viewpage.action?pageId=${page.id}`;
 }
 
-/** Shared GET helper: Basic auth, JSON accept, timeout, structured errors. */
-async function getJson<T>(creds: AtlassianCreds, path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+/** Convenience GET wrapper. */
+function getJson<T>(creds: AtlassianCreds, path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  return sendJson<T>(creds, 'GET', path, undefined, false, timeoutMs);
+}
+
+/**
+ * Shared request helper: Basic auth, JSON, timeout, structured errors.
+ * `allowEmpty` tolerates an empty/204 body (PUTs that return no content).
+ */
+async function sendJson<T>(
+  creds: AtlassianCreds,
+  method: 'GET' | 'POST' | 'PUT',
+  path: string,
+  body?: unknown,
+  allowEmpty = false,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<T> {
   const url = `${creds.baseUrl}${path}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const headers: Record<string, string> = { Authorization: basicAuthHeader(creds), Accept: 'application/json' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
   let res: Response;
   try {
     res = await fetch(url, {
-      method: 'GET',
-      headers: { Authorization: basicAuthHeader(creds), Accept: 'application/json' },
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (err) {
@@ -147,11 +192,13 @@ async function getJson<T>(creds: AtlassianCreds, path: string, timeoutMs = DEFAU
 
   const text = await res.text();
   if (!res.ok) {
-    throw new AtlassianError(`Atlassian GET ${path} returned ${res.status}`, res.status, text);
+    throw new AtlassianError(`Atlassian ${method} ${path} returned ${res.status}`, res.status, text);
   }
+  if (allowEmpty && text.trim() === '') return undefined as T;
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new AtlassianError(`Atlassian GET ${path} returned non-JSON`, res.status, text);
+    if (allowEmpty) return undefined as T;
+    throw new AtlassianError(`Atlassian ${method} ${path} returned non-JSON`, res.status, text);
   }
 }

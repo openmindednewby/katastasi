@@ -119,3 +119,35 @@ export interface ConfluencePullResult {
   manifestPath: string;
   dir: string;
 }
+
+/* ── Reverse re-publish (push-folder): markdown folder → Jira / Confluence ───── */
+
+/** Options for `pushFolder`. */
+export interface PushOptions {
+  /** Resolve markdown + parent links but don't call Atlassian; report intended actions. */
+  dryRun?: boolean;
+}
+
+/** One issue re-published from a pulled folder. */
+export interface PushedIssue {
+  file: string;
+  key: string;
+  action: 'created' | 'updated' | 'would-create' | 'would-update';
+  url: string;
+}
+
+/** One page re-published from a pulled folder. */
+export interface PushedPage {
+  dir: string;
+  pageId: string;
+  action: 'created' | 'updated' | 'would-create' | 'would-update';
+  url: string;
+}
+
+/** Result of pushing a folder back. `kind` discriminates the populated array. */
+export interface PushFolderResult {
+  kind: 'jira' | 'confluence';
+  dir: string;
+  issues?: PushedIssue[];
+  pages?: PushedPage[];
+}

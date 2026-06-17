@@ -86,8 +86,26 @@ scripts/              # jira-to-folder.sh + .ps1, confluence-to-folder.sh + .ps1
 - `test` script now builds then runs `node --test "test/**/*.test.js"` against compiled dist (plain-JS tests,
   no TS-in-node loader friction).
 
+## Follow-up DONE: `acp push-folder` (recursive re-publish)
+Manifest-driven complement — edit the pulled markdown, push the whole tree back via direct REST.
+- [x] Ported the n8n forward converters to TS: `markdownToAdf.ts` (from `markdown-to-jira` Code
+      node) + `markdownToStorage.ts` (from `markdown-to-confluence`, incl. the new XML-escape fix).
+      Fixed a latent off-by-one in the storage task-list branch (n8n `for`-loop `continue` skipped
+      the line after a task list).
+- [x] `atlassian.ts`: write methods `createIssue` / `updateIssue` / `createPage` / `updatePage`
+      (refactored the request helper to a shared `sendJson` for GET/POST/PUT, tolerant of 204).
+- [x] `push.ts`: reads `acp-pull.json`, walks parents-before-children, updates by key/id in place,
+      creates entries lacking a key/id (parent links remapped old→live), Confluence version bump.
+      `parseIssueMarkdown` splits the body from the trailing Priority/Component/Labels meta sections
+      (Acceptance Criteria stays in the description body). `--dry-run` reports actions, no calls.
+- [x] CLI `acp push-folder <dir> [--dry-run]` + MCP tool `push_folder`.
+- [x] Tests: +12 (converters, markdown parsing, integration vs mock REST for jira update + dry-run
+      + confluence version-bump + missing-manifest) → **33 pass total**.
+- [x] Docs updated (README + CLI_AND_MCP): reverse re-publish section, MCP table, roadmap.
+
 ## Remaining (not done — needs live Atlassian)
 - [ ] End-to-end run against a real Jira/Confluence sandbox (verified only against a mock REST server)
-- [ ] `acp push-folder` recursive re-publish (manifest-driven) — roadmap
+- [ ] Wire `ACP_BACKEND=direct` into the forward `acp jira` / `acp confluence` publish commands so
+      they reuse the now-ported TS converters instead of n8n (Stage 2; converters now exist).
 
-## Status: CODE-COMPLETE (build/typecheck/tests green; live Atlassian run pending creds)
+## Status: CODE-COMPLETE — reverse pull + recursive push-folder (build/typecheck/33 tests green; live Atlassian run pending creds)

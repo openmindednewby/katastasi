@@ -302,8 +302,15 @@ acp pull-confluence 123456 ./out             # page + descendant pages → neste
 ```
 
 Needs `JIRA_*` / `CONFLUENCE_*` creds in `.env`. Agents can use the MCP tools `jira_to_markdown` /
-`confluence_to_markdown`. Re-publish a pulled folder with `acp jira --epic ./out/epic.md --task ./out/task-*.md`.
-See [docs/CLI_AND_MCP.md](docs/CLI_AND_MCP.md#reverse-jira--confluence--markdown-folder).
+`confluence_to_markdown`. See [docs/CLI_AND_MCP.md](docs/CLI_AND_MCP.md#reverse-jira--confluence--markdown-folder).
+
+Edit the markdown locally and push the whole tree back — including sub-tasks and child pages —
+with `push-folder` (direct REST, reads the manifest):
+
+```bash
+acp push-folder ./out              # update issues/pages in place, recursively
+acp push-folder ./out --dry-run    # preview the create/update actions
+```
 
 ## Team Context Profiles
 
@@ -405,6 +412,7 @@ See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for the full roadmap.
 - Team context profiles with schema and example
 - **`acp` CLI + MCP server** — publish agent/hand-written markdown to Jira & Confluence (Stage 1: via n8n publish webhooks). See **[Install guide](docs/INSTALL.md)** · **[CLI & MCP guide](docs/CLI_AND_MCP.md)** · **[ready-to-use setup prompt](docs/SETUP_PROMPT.md)**.
 - **Reverse pipeline (Jira/Confluence → markdown)** — `acp pull-jira` / `acp pull-confluence` (+ `jira_to_markdown` / `confluence_to_markdown` MCP tools + `scripts/*-to-folder.*`). Pulls an epic/page tree via direct REST into a round-trippable markdown folder with an `acp-pull.json` manifest. Recursive (Epic→Stories→Sub-tasks; page→descendants).
+- **Recursive re-publish** — `acp push-folder` (+ `push_folder` MCP tool) reads `acp-pull.json` and pushes the edited tree back via direct REST, updating sub-tasks / child pages in place (the n8n flat path can't). Ships the TS forward converters `markdownToAdf` / `markdownToStorage`.
 - **Browser UI workbench** — reusable templates, named sessions, a rolling 10-deep auto-history, undo/redo, and multi-tab-safe shared storage (independent tabs, shared library). See **[Workbench guide](docs/SESSIONS.md)**.
 
 **Next up:**
@@ -412,8 +420,7 @@ See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for the full roadmap.
 - **Confluence page templates** — polished layouts with macros, panels, and TOC per template type
 - **Jira structure support** — epic-with-stories, phased-epics, story-with-subtasks in n8n
 - **Smart template selection** — AI auto-detects the best template from the description
-- **Direct-REST backend (forward)** — `ACP_BACKEND=direct` so *publishing* skips n8n too (the reverse pull already uses direct REST)
-- **`acp push-folder`** — re-publish a pulled folder + its `acp-pull.json` manifest in place, recursively (sub-tasks / child pages), the complement to today's flat re-publish
+- **Direct-REST backend (forward)** — wire `ACP_BACKEND=direct` into `acp jira` / `acp confluence` so *publishing* reuses the now-ported TS converters (`markdownToAdf` / `markdownToStorage`) instead of n8n
 - **`acp analyze`** — AI generation via the CLI (currently the agent generates; tool publishes)
 
 ## Contributing

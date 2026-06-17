@@ -10,8 +10,14 @@ import { Command } from 'commander';
 import { publishJira } from '../core/jira.js';
 import { publishConfluence } from '../core/confluence.js';
 import { pullJira, pullConfluence } from '../core/pull.js';
+import { pushFolder } from '../core/push.js';
 import { getConfig } from '../core/config.js';
-import type { JiraPublishResult, JiraPullResult, ConfluencePullResult } from '../core/types.js';
+import type {
+  JiraPublishResult,
+  JiraPullResult,
+  ConfluencePullResult,
+  PushFolderResult,
+} from '../core/types.js';
 
 function read(path: string): string {
   try {
@@ -153,6 +159,33 @@ program
       fail(err);
     }
   });
+
+program
+  .command('push-folder')
+  .description('Reverse re-publish: push a pulled markdown folder (+ acp-pull.json) back to Jira/Confluence.')
+  .argument('<dir>', 'folder produced by pull-jira / pull-confluence (must contain acp-pull.json)')
+  .option('--dry-run', 'show the intended create/update actions without calling Atlassian', false)
+  .action(async (dir: string, opts) => {
+    try {
+      process.stdout.write(`\n  Markdown folder -> Atlassian\n  Dir: ${dir}${opts.dryRun ? '  [DRY RUN]' : ''}\n`);
+      const result = await pushFolder(dir, { dryRun: opts.dryRun });
+      printPushResult(result);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+function printPushResult(result: PushFolderResult): void {
+  if (result.kind === 'jira') {
+    const issues = result.issues ?? [];
+    process.stdout.write(`\n  Done. ${issues.length} issue(s)\n`);
+    issues.forEach((i) => process.stdout.write(`  [${i.key}] ${i.action}: ${i.file}${i.url ? ` — ${i.url}` : ''}\n`));
+  } else {
+    const pages = result.pages ?? [];
+    process.stdout.write(`\n  Done. ${pages.length} page(s)\n`);
+    pages.forEach((p) => process.stdout.write(`  [${p.pageId}] ${p.action}: ${p.dir}/page.md${p.url ? ` — ${p.url}` : ''}\n`));
+  }
+}
 
 function printJiraPullResult(result: JiraPullResult): void {
   process.stdout.write(`\n  Done. ${result.issues.length} issue(s) written to ${result.dir}\n`);

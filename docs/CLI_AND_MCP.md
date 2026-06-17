@@ -63,8 +63,21 @@ acp pull-confluence 123456 ./out
 acp pull-confluence https://you.atlassian.net/wiki/spaces/T/pages/123456/Title ./out --force
 ```
 
-Re-publish a pulled folder with the forward commands: `acp jira --epic ./out/epic.md --task ./out/task-*.md`.
 Bash/PowerShell wrappers: `scripts/jira-to-folder.sh`, `scripts/confluence-to-folder.sh` (+ `.ps1`).
+
+### Re-publish a pulled folder (recursive round-trip)
+
+Edit the markdown locally, then push the whole tree back — including sub-tasks and child pages,
+which the flat n8n re-publish cannot express. `push-folder` reads `acp-pull.json`, converts each
+file back (markdown → ADF / storage) via **direct REST**, and updates each issue/page in place
+(manifest entries without a key/id are created, with parent links remapped):
+
+```bash
+acp push-folder ./out              # update the whole tree in place
+acp push-folder ./out --dry-run    # show intended create/update actions, no calls
+```
+
+(The flat forward command still works for epic + stories: `acp jira --epic ./out/epic.md --task ./out/task-*.md`.)
 
 ## MCP server (for Claude / agents)
 
@@ -76,6 +89,7 @@ The server exposes two tools that take **raw markdown strings** (what an agent h
 | `markdown_to_confluence` | Create/update a Confluence page. Args: `pageMarkdown`, `title?`, `sectionMarkdowns[]?`, `pageId?`, `parentPageId?`, `labels[]?` |
 | `jira_to_markdown` | **Reverse.** Pull a Jira Epic (+ Stories + Sub-tasks) into a markdown folder. Args: `epic`, `dir`, `recursive?`, `force?` (direct REST, needs `JIRA_*` in `.env`) |
 | `confluence_to_markdown` | **Reverse.** Pull a Confluence page (+ descendant pages) into a markdown folder. Args: `page`, `dir`, `recursive?`, `force?` (direct REST, needs `CONFLUENCE_*` in `.env`) |
+| `push_folder` | **Reverse re-publish.** Push a pulled folder (+ `acp-pull.json`) back, recursively (incl. sub-tasks / child pages). Args: `dir`, `dryRun?` (direct REST) |
 
 ### Register in Claude Code
 
@@ -133,8 +147,10 @@ Tables, code blocks, task lists and links are converted to ADF by the n8n workfl
 
 - **Reverse pipeline (done):** `pull-jira` / `pull-confluence` (+ `jira_to_markdown` /
   `confluence_to_markdown` MCP tools) pull issues/pages into markdown via direct REST.
-- **Stage 2 (forward direct):** `ACP_BACKEND=direct` — port the n8n `mdToAdf` converter to TS and
-  call Atlassian REST directly for **publishing**, so agents don't need n8n/Docker running.
-- **Folder re-publish:** an `acp push-folder` that reads `acp-pull.json` and updates the whole
-  tree in place (incl. sub-tasks / child pages), the recursive complement to today's flat re-publish.
+- **Recursive re-publish (done):** `push-folder` (+ `push_folder` MCP tool) reads `acp-pull.json`
+  and updates the whole tree in place (incl. sub-tasks / child pages) via direct REST. The TS
+  forward converters (`markdownToAdf` / `markdownToStorage`, ported from the n8n Code nodes) make
+  this self-contained.
+- **Stage 2 (forward direct, remaining):** wire `ACP_BACKEND=direct` into the *publish* commands
+  (`acp jira` / `acp confluence`) so they reuse the now-ported TS converters instead of n8n.
 - Deferred: `run_analysis` tool (AI generation via the n8n preview pipeline).
