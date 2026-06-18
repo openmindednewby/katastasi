@@ -18,6 +18,7 @@ export function storageToMarkdown(html: string | null | undefined): string {
   // Strip the pipeline's own "Published from markdown by …" footer if present.
   out = out.replace(/<hr\s*\/?>\s*<p><em>Published from markdown[\s\S]*?<\/em><\/p>\s*$/i, '');
 
+  out = convertMermaidMacros(out);
   out = convertCodeMacros(out);
   out = convertTaskLists(out);
   out = convertTables(out);
@@ -32,6 +33,15 @@ export function storageToMarkdown(html: string | null | undefined): string {
     .map((l) => l.replace(/[ \t]+$/g, ''))
     .join('\n')
     .trim();
+}
+
+/** Any mermaid macro (`mermaid-cloud`, `mermaid`, …) → a ```mermaid fenced block. */
+function convertMermaidMacros(html: string): string {
+  const macro = /<ac:structured-macro[^>]*ac:name="(mermaid[^"]*)"[^>]*>([\s\S]*?)<\/ac:structured-macro>/gi;
+  return html.replace(macro, (_m, _name: string, inner: string) => {
+    const body = /<!\[CDATA\[([\s\S]*?)\]\]>/.exec(inner)?.[1] ?? stripTags(inner);
+    return `\n\n\`\`\`mermaid\n${body.trim()}\n\`\`\`\n\n`;
+  });
 }
 
 /** `<ac:structured-macro ac:name="code">…<![CDATA[…]]></ac:structured-macro>` → fenced block. */

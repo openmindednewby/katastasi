@@ -115,13 +115,14 @@ async function pushConfluenceFolder(
   ensureEnvLoaded();
   const creds = getConfluenceCreds();
   const spaceKey = process.env.CONFLUENCE_SPACE_KEY;
+  const mermaidMacro = process.env.CONFLUENCE_MERMAID_MACRO || undefined;
   const idMap = new Map<string, string>(); // manifest id → live id
   const pages: PushedPage[] = [];
 
   for (const entry of manifest.pages) {
     const fileDir = entry.dir === '.' ? dir : join(dir, entry.dir);
     const parsed = parsePageMarkdown(readFileSync(join(fileDir, 'page.md'), 'utf8'), entry.title);
-    const storage = markdownToStorage(parsed.body);
+    const storage = markdownToStorage(parsed.body, mermaidMacro);
     const liveParent = entry.parentPageId ? idMap.get(entry.parentPageId) ?? entry.parentPageId : null;
     const url = (id: string): string => `${creds.baseUrl}/wiki/pages/viewpage.action?pageId=${id}`;
 

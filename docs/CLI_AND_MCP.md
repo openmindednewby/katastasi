@@ -141,7 +141,36 @@ Backend
 auth, security
 ```
 
-Tables, code blocks, task lists and links are converted to ADF by the n8n workflow.
+Tables, code blocks, task lists and links are converted to ADF / Confluence storage.
+
+### Mermaid diagrams
+
+A fenced ` ```mermaid ` block is supported in both directions, both products:
+
+````markdown
+```mermaid
+graph TD; A-->B; B-->C;
+```
+````
+
+- **Jira** — becomes an ADF `codeBlock` with `language: mermaid` (renders if a Jira mermaid app is
+  installed; the source is always preserved). Round-trips back to a ` ```mermaid ` fence on pull.
+- **Confluence** — becomes a mermaid macro (`CONFLUENCE_MERMAID_MACRO`, default `mermaid-cloud` —
+  the free "Mermaid Diagrams for Confluence" app) with the source in the macro body. Renders if that
+  app is installed, and any `mermaid*` macro round-trips back to a ` ```mermaid ` fence on pull.
+
+Because the source lives in the code block / macro body (not a flattened image), `pull → edit → push`
+keeps the diagram intact.
+
+## Docker
+
+The CLI + MCP server ship as a Docker image; a script streams it to a remote host with no registry
+(`docker save | gzip | ssh 'gunzip | docker load'`). See **[docs/DOCKER.md](DOCKER.md)**.
+
+```bash
+./scripts/docker-build.sh
+./scripts/docker-deploy-remote.sh user@host --env-file .env
+```
 
 ## Roadmap
 
@@ -151,6 +180,10 @@ Tables, code blocks, task lists and links are converted to ADF by the n8n workfl
   and updates the whole tree in place (incl. sub-tasks / child pages) via direct REST. The TS
   forward converters (`markdownToAdf` / `markdownToStorage`, ported from the n8n Code nodes) make
   this self-contained.
+- **Mermaid (done):** ` ```mermaid ` blocks render via ADF code block (Jira) / configurable macro
+  (Confluence), round-tripping in both directions; n8n publish path patched to match.
+- **Docker (done):** image + `scripts/docker-build.*` + `scripts/docker-deploy-remote.*` (SSH
+  save/load, no registry). See [docs/DOCKER.md](DOCKER.md).
 - **Stage 2 (forward direct, remaining):** wire `ACP_BACKEND=direct` into the *publish* commands
   (`acp jira` / `acp confluence`) so they reuse the now-ported TS converters instead of n8n.
 - Deferred: `run_analysis` tool (AI generation via the n8n preview pipeline).

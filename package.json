@@ -20,6 +20,8 @@
     "dev": "tsc -p tsconfig.json --watch",
     "start:mcp": "node dist/mcp/server.js",
     "deploy:workflows": "node scripts/deploy-workflows.mjs",
+    "docker:build": "bash scripts/docker-build.sh",
+    "docker:deploy": "bash scripts/docker-deploy-remote.sh",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test \"test/**/*.test.js\""
   },

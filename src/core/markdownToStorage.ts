@@ -6,8 +6,15 @@
  * direct-REST `push` path produces the same storage XML without needing n8n running.
  */
 
-/** Convert a markdown string to Confluence storage-format XHTML. */
-export function markdownToStorage(md: string): string {
+/** Default Confluence macro for mermaid diagrams (the common free "Mermaid Diagrams for Confluence" app). */
+export const DEFAULT_MERMAID_MACRO = 'mermaid-cloud';
+
+/**
+ * Convert a markdown string to Confluence storage-format XHTML.
+ * A ```mermaid fenced block becomes a mermaid macro (`mermaidMacro`, default `mermaid-cloud`) with
+ * the source in its body — it renders when that app is installed and the source always round-trips.
+ */
+export function markdownToStorage(md: string, mermaidMacro: string = DEFAULT_MERMAID_MACRO): string {
   const lines = (md ?? '').replace(/\r/g, '').split('\n');
   let html = '';
   let inCodeBlock = false;
@@ -44,9 +51,15 @@ export function markdownToStorage(md: string): string {
     }
     if (line.startsWith('```') && inCodeBlock) {
       inCodeBlock = false;
-      html +=
-        `<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">${codeLang}</ac:parameter>` +
-        `<ac:plain-text-body><![CDATA[${codeContent.trim()}]]></ac:plain-text-body></ac:structured-macro>`;
+      if (codeLang.toLowerCase() === 'mermaid') {
+        html +=
+          `<ac:structured-macro ac:name="${mermaidMacro}">` +
+          `<ac:plain-text-body><![CDATA[${codeContent.trim()}]]></ac:plain-text-body></ac:structured-macro>`;
+      } else {
+        html +=
+          `<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">${codeLang}</ac:parameter>` +
+          `<ac:plain-text-body><![CDATA[${codeContent.trim()}]]></ac:plain-text-body></ac:structured-macro>`;
+      }
       continue;
     }
     if (inCodeBlock) {
