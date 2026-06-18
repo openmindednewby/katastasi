@@ -11,6 +11,21 @@ It exposes both bins on `PATH`:
 The image reads `JIRA_*` / `CONFLUENCE_*` / `WEBHOOK_URL` from the environment — pass `--env-file .env`.
 Mount a host dir at `/work` to retrieve pulled folders.
 
+## Fastest path — getting-started script
+
+One script builds the image and deploys it to local Docker Desktop **or** a remote host over SSH:
+
+```bash
+./scripts/getting-started.sh                                  # interactive: asks local vs remote
+./scripts/getting-started.sh local --with-n8n                # build + verify locally (+ n8n stack)
+./scripts/getting-started.sh remote me@host --ssh-key ~/.ssh/id_ed25519
+```
+
+PowerShell: `./scripts/getting-started.ps1 -Mode local` / `-Mode remote -Target me@host`.
+
+Want an **agent** to do it autonomously? Paste-ready prompts (local + remote, with guardrails) are in
+**[docs/DEPLOY_PROMPT.md](DEPLOY_PROMPT.md)**.
+
 ## Build
 
 ```bash
@@ -79,3 +94,16 @@ What the deploy script does:
 
 The only remote requirement is Docker + SSH access. The MCP server is stdio, so on the remote
 you run it on demand (`docker run -i …`) rather than as a long-lived daemon.
+
+### Alternative — drive the remote daemon over an SSH tunnel (docker context)
+
+Instead of save/load you can point Docker at the remote daemon over SSH (Docker tunnels the socket):
+
+```bash
+docker context create acp-remote --docker "host=ssh://me@host"
+docker --context acp-remote build -t acp:latest .          # builds on the remote
+docker --context acp-remote run -i --rm --env-file .env acp:latest
+```
+
+Use **save/load** when the remote can't reach this repo or you want a clean registry-less hand-off;
+use a **context** when the remote daemon is SSH-reachable and you'd rather build there.
