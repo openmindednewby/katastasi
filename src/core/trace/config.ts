@@ -26,6 +26,10 @@ const testSourceSchema = z.object({
   globs: z.array(z.string()).min(1),
   /** Result-file globs (JUnit XML / TRX) produced by running this tech's suite. */
   results: z.array(z.string()).optional(),
+  /** Optional command to (re)run this suite with `acp trace --run` (e.g. `npx playwright test`). */
+  command: z.string().optional(),
+  /** Working dir for `command` (relative to repoDir; default repoDir). */
+  cwd: z.string().optional(),
 });
 
 const scopeSchema = z.object({
@@ -42,6 +46,10 @@ export const traceConfigSchema = z.object({
   /** Repo root the globs + git are resolved against (relative to the config file; default `.`). */
   repoDir: z.string().optional(),
   scopes: z.array(scopeSchema).min(1),
+  /** Run history: where git-stamped snapshots are stored + an optional named baseline to diff against. */
+  history: z
+    .object({ dir: z.string().default('runs'), baseline: z.string().optional() })
+    .optional(),
   output: z
     .object({ markdown: z.string().optional(), html: z.string().optional(), json: z.string().optional() })
     .optional(),

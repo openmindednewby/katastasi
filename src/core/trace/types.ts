@@ -108,8 +108,28 @@ export interface TraceStats {
   specified: number;
   drift: number;
   orphanTests: number;
+  /** Number of requirements whose state got worse since the compared run (0 when no comparison). */
+  regressions: number;
   /** verified / total as a 0–100 integer percentage. */
   coveragePct: number;
+}
+
+/** A requirement's state transition between two runs. */
+export interface StateChange {
+  key: string;
+  title: string;
+  from: RequirementState;
+  to: RequirementState;
+}
+
+/** What a report was compared against for regression detection. */
+export interface ComparedTo {
+  /** Short git sha of the prior run (or null). */
+  ref: string | null;
+  /** ISO timestamp the prior run was generated. */
+  generatedAt: string;
+  /** The run file the comparison used, when persisted. */
+  file?: string;
 }
 
 /** The full traceability report — the canonical object every sink renders. */
@@ -122,4 +142,10 @@ export interface TraceReport {
   requirements: TracedRequirement[];
   orphanTests: OrphanTest[];
   stats: TraceStats;
+  /** The prior run this was diffed against (set when history comparison ran). */
+  comparedTo?: ComparedTo;
+  /** Requirements that got worse since `comparedTo` (verified → failing, etc.). */
+  regressions?: StateChange[];
+  /** Requirements that got better since `comparedTo`. */
+  improvements?: StateChange[];
 }

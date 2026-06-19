@@ -32,7 +32,25 @@ function commitLine(report: TraceReport): string {
   const sha = git.shortSha ? `\`${git.shortSha}\`` : '`(no git)`';
   const branch = git.branch ? ` (${git.branch})` : '';
   const dirty = git.dirty ? ' ⚠️ uncommitted changes' : '';
-  return `**Commit:** ${sha}${branch}${dirty} · **Generated:** ${report.generatedAt}`;
+  let line = `**Commit:** ${sha}${branch}${dirty} · **Generated:** ${report.generatedAt}`;
+  if (report.comparedTo) {
+    line += `\n\n**Compared to:** \`${report.comparedTo.ref ?? '(prior run)'}\` (${report.comparedTo.generatedAt})`;
+  }
+  return line;
+}
+
+function regressionSection(report: TraceReport): string {
+  const regressions = report.regressions ?? [];
+  if (!regressions.length) return '';
+  const items = regressions.map((c) => `- **${cell(c.key)}** ${cell(c.title)} — ${stateBadge(c.from)} → ${stateBadge(c.to)}`);
+  return ['', '## ⛔ Regressions since the last run', '', ...items].join('\n');
+}
+
+function improvementSection(report: TraceReport): string {
+  const improvements = report.improvements ?? [];
+  if (!improvements.length) return '';
+  const items = improvements.map((c) => `- **${cell(c.key)}** ${cell(c.title)} — ${stateBadge(c.from)} → ${stateBadge(c.to)}`);
+  return ['', '## 📈 Improvements since the last run', '', ...items].join('\n');
 }
 
 function statsTable(report: TraceReport): string {
@@ -46,6 +64,7 @@ function statsTable(report: TraceReport): string {
     `| 📋 Specified | ${s.specified} |`,
     `| ⚠️ Drift | ${s.drift} |`,
     `| 👻 Orphan tests | ${s.orphanTests} |`,
+    ...(report.comparedTo ? [`| ⛔ Regressions | ${s.regressions} |`] : []),
     `| **Verified coverage** | **${s.coveragePct}%** |`,
   ].join('\n');
 }
@@ -92,6 +111,8 @@ export function renderMarkdown(report: TraceReport): string {
     '## Requirements',
     '',
     matrix(report),
+    regressionSection(report),
+    improvementSection(report),
     driftSection(report),
     orphanSection(report),
     '',
