@@ -95,7 +95,7 @@ acp trace --config acp-trace.json --publish-confluence           # update the co
 ```
 
 `acp trace` flags: `--config`, `--run`, `--no-save`, `--no-compare`, `--md/--html/--json`,
-`--roadmap`/`--section`, `--publish-confluence`, `--stamp-jira` (label verified Jira issues),
+`--roadmap`/`--section`, `--publish-confluence`, `--stamp-jira` (label verified Jira issues), `--notify <url>`/`--notify-on` (webhook on regression),
 `--fail-on none|regression|stale|drift|failing`.
 `acp trace serve` flags: `--config`, `--port`, `--host`, `--watch`/`--interval` (auto-refresh as
 results change), `--read-only`/`--pull`/`--pull-interval` (git-backed team dashboard),

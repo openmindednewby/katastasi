@@ -52,6 +52,13 @@ export const traceConfigSchema = z.object({
     .optional(),
   /** Built-in web portal (`acp trace serve`) settings. */
   portal: z.object({ port: z.number().default(8787) }).optional(),
+  /** Post a message to a webhook (Slack/Teams/generic) after a run. */
+  notify: z
+    .object({
+      webhook: z.string(),
+      on: z.enum(['regression', 'failing', 'stale', 'always']).default('regression'),
+    })
+    .optional(),
   output: z
     .object({ markdown: z.string().optional(), html: z.string().optional(), json: z.string().optional() })
     .optional(),
