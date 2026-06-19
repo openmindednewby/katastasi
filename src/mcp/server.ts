@@ -22,6 +22,7 @@ import { loadTraceConfig } from '../core/trace/config.js';
 import { runTrace, renderAll, requirementStatus, gatherRequirements } from '../core/trace/index.js';
 import { scaffoldTest } from '../core/trace/scaffoldTest.js';
 import { writeRequirementsFolder } from '../core/trace/requirements/folder.js';
+import { analyze } from '../core/analyze/analyze.js';
 import { generateQuestions } from '../core/questions/generate.js';
 
 const server = new McpServer({ name: 'ai-confluence-pipeline', version: '0.1.0' });
@@ -371,6 +372,41 @@ server.registerTool(
         content: [{ type: 'text' as const, text: `Wrote ${out.files.length} requirement(s) to ${args.dir ?? 'requirements'}/ (+ manifest.json).` }],
         structuredContent: { dir: args.dir ?? 'requirements', count: out.files.length, keys: out.files.map((f) => f.key) },
       };
+    } catch (err) {
+      return errorResult(err);
+    }
+  },
+);
+
+server.registerTool(
+  'analyze',
+  {
+    title: 'Technical gap analysis → tech doc + Jira tasks + scaffolded tests',
+    description:
+      'Run the technical-analysis flow over acp-trace.json: gather requirements, compare against the ' +
+      'codebase, and write (to a local folder) a GAP ANALYSIS, a Confluence-ready TECHNICAL ANALYSIS ' +
+      'page (architecture/contracts/endpoints/mermaid flows), and JIRA TASKS — each story with ' +
+      'acceptance criteria, a use-case flow, and tagged unit/e2e test stubs scaffolded into the repo. ' +
+      'Uses the configured AI provider (AI_PROVIDER / *_API_KEY). Publish the outputs with ' +
+      'markdown_to_confluence / markdown_to_jira.',
+    inputSchema: {
+      configPath: z.string().optional().describe('Path to acp-trace.json (default: ./acp-trace.json).'),
+      out: z.string().optional().describe('Output folder (default: tech-analysis).'),
+      scaffold: z.boolean().optional().describe('Scaffold the per-task test stubs (default true).'),
+    },
+  },
+  async (args) => {
+    try {
+      const configPath = resolve(args.configPath ?? 'acp-trace.json');
+      const config = loadTraceConfig(configPath);
+      const r = await analyze(config, dirname(configPath), { outDir: args.out, scaffold: args.scaffold });
+      const lines = [
+        `Wrote ${r.files.length} file(s) to ${args.out ?? 'tech-analysis'}/: gap-analysis.md, technical-analysis.md, tasks/`,
+        `${r.tasks.length} task(s): ${r.tasks.map((t) => t.key).join(', ')}`,
+        `${r.scaffolded.length} test stub(s) scaffolded.`,
+        'Publish with markdown_to_confluence (technical-analysis.md) + markdown_to_jira (tasks/).',
+      ];
+      return { content: [{ type: 'text' as const, text: lines.join('\n') }], structuredContent: { outDir: r.outDir, files: r.files, tasks: r.tasks.map((t) => t.key), scaffolded: r.scaffolded } };
     } catch (err) {
       return errorResult(err);
     }
