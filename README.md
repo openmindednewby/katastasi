@@ -10,6 +10,9 @@ Feature Description → AI Analysis → Confluence Page → Jira Tasks
 
 ![AI Confluence Pipeline UI](docs/screenshot.png)
 
+> **Coding agent or contributor?** Start with **[AGENTS.md](AGENTS.md)** — repo map, setup, build/test,
+> conventions, and how to deploy. Deploying on Docker? See **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+
 ## What It Does
 
 1. You describe a feature, bug, or research spike
