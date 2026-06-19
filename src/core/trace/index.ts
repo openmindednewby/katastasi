@@ -15,6 +15,8 @@ import { parseRoadmapHtml } from './requirements/roadmapHtml.js';
 import { ingestResults } from './results.js';
 import { renderHtml } from './report/html.js';
 import { renderMarkdown } from './report/markdown.js';
+import { runCommands, type CommandRun, type RunnableSpec } from './runner.js';
+import { applyDiff, loadBaseline, saveRun } from './history.js';
 import { DEFAULT_KEY_PATTERN, readMappingFile, scanTestSources, type TestSourceSpec } from './testScanner.js';
 import { globFiles } from './glob.js';
 import type { Requirement, TestRef, TraceReport } from './types.js';
@@ -69,15 +71,49 @@ function loadScopeTests(
   return { refs, resultFiles };
 }
 
-/** Build a TraceReport from a validated config. `baseDir` = directory the config paths resolve against. */
-export async function runTrace(config: TraceConfig, baseDir: string): Promise<TraceReport> {
+/** Options controlling side effects of a trace run. */
+export interface RunTraceOptions {
+  /** Execute each test group's `command` before ingesting results (default false). */
+  run?: boolean;
+  /** Persist this run to the history dir (default true when `history` is configured). */
+  save?: boolean;
+  /** Diff against the previous run / baseline (default true when `history` is configured). */
+  compare?: boolean;
+}
+
+/** A trace result plus any command runs that produced it. */
+export interface TraceRunResult {
+  report: TraceReport;
+  commands: CommandRun[];
+}
+
+/** Build a TraceReport from a validated config, optionally running suites + recording history. */
+export async function runTrace(config: TraceConfig, baseDir: string, opts: RunTraceOptions = {}): Promise<TraceReport> {
+  return (await runTraceDetailed(config, baseDir, opts)).report;
+}
+
+/** Like `runTrace` but also returns the command outcomes (for the portal / verbose CLI). */
+export async function runTraceDetailed(
+  config: TraceConfig,
+  baseDir: string,
+  opts: RunTraceOptions = {},
+): Promise<TraceRunResult> {
   const keyPattern = config.keyPattern ?? DEFAULT_KEY_PATTERN;
   const repoDir = rel(baseDir, config.repoDir ?? '.');
 
+  // 1. Optionally (re)run the suites so they regenerate their result files.
+  let commands: CommandRun[] = [];
+  if (opts.run) {
+    const specs: RunnableSpec[] = config.scopes.flatMap((s) =>
+      s.tests.map((t) => ({ tech: t.tech, command: t.command, cwd: t.cwd })),
+    );
+    commands = runCommands(specs, repoDir);
+  }
+
+  // 2. Gather requirements + test refs + result files.
   const requirements: Requirement[] = [];
   const refs: TestRef[] = [];
   const resultFiles: string[] = [];
-
   for (const scope of config.scopes) {
     for (const source of scope.requirements) {
       requirements.push(...(await loadRequirements(source, baseDir, keyPattern, scope.name)));
@@ -87,8 +123,9 @@ export async function runTrace(config: TraceConfig, baseDir: string): Promise<Tr
     resultFiles.push(...scopeTests.resultFiles);
   }
 
+  // 3. Join everything at the current commit.
   const ingested = ingestResults([...new Set(resultFiles)], keyPattern);
-  return computeReport({
+  const report = computeReport({
     requirements,
     refs,
     ingested,
@@ -96,6 +133,18 @@ export async function runTrace(config: TraceConfig, baseDir: string): Promise<Tr
     generatedAt: new Date().toISOString(),
     project: config.project,
   });
+
+  // 4. History: diff against the prior run, then persist this one.
+  if (config.history) {
+    const historyDir = rel(baseDir, config.history.dir);
+    if (opts.compare !== false) {
+      const prev = loadBaseline(historyDir, config.history.baseline);
+      if (prev) applyDiff(report, prev);
+    }
+    if (opts.save !== false) saveRun(report, historyDir);
+  }
+
+  return { report, commands };
 }
 
 /** Render a report to every output format. */

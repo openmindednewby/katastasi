@@ -66,6 +66,7 @@ function computeStats(rows: TracedRequirement[], orphanCount: number): TraceStat
     specified: count('specified'),
     drift: rows.filter((r) => r.drift).length,
     orphanTests: orphanCount,
+    regressions: 0, // set by the history diff when a prior run exists
     coveragePct: total ? Math.round((verified / total) * 100) : 0,
   };
 }

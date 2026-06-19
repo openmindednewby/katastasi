@@ -190,15 +190,18 @@ const traceCmd = program
   .option('--roadmap <path>', 'fold the report into this existing doc (between acp:trace markers)')
   .option('--section <id>', 'section id used with --roadmap', 'rtm')
   .option('--publish-confluence', 'update the Confluence page from config.publish.confluence', false)
-  .option('--fail-on <level>', 'exit non-zero on: none | drift | failing', 'none')
+  .option('--run', 'execute each test group\'s command before tracing (re-run the suites)', false)
+  .option('--no-save', 'do not persist this run to the history dir')
+  .option('--no-compare', 'do not diff against the previous run / baseline')
+  .option('--fail-on <level>', 'exit non-zero on: none | regression | drift | failing', 'none')
   .action(async (opts) => {
     try {
       const configPath = resolve(opts.config);
       const baseDir = dirname(configPath);
       const config = loadTraceConfig(configPath);
-      process.stdout.write(`\n  Tracing requirements (config: ${opts.config})\n`);
+      process.stdout.write(`\n  Tracing requirements (config: ${opts.config})${opts.run ? '  [running suites]' : ''}\n`);
 
-      const report = await runTrace(config, baseDir);
+      const report = await runTrace(config, baseDir, { run: opts.run, save: opts.save, compare: opts.compare });
 
       // File outputs: config.output merged with CLI overrides.
       const output = {
@@ -266,7 +269,15 @@ function printTraceSummary(report: TraceReport, written: string[]): void {
     `  ✅ ${s.verified} verified  ❌ ${s.failing} failing  🧪 ${s.unverified} unverified  📋 ${s.specified} specified\n`,
   );
   process.stdout.write(`  ⚠️  ${s.drift} drift   👻 ${s.orphanTests} orphan tests   Coverage: ${s.coveragePct}%\n`);
+  if (report.comparedTo) {
+    process.stdout.write(`  vs ${report.comparedTo.ref ?? 'prior'} (${report.comparedTo.generatedAt}) — ⛔ ${s.regressions} regression(s)\n`);
+  }
   if (written.length) process.stdout.write(`  Wrote: ${written.join(', ')}\n`);
+  const regressions = report.regressions ?? [];
+  if (regressions.length) {
+    process.stdout.write('\n  ⛔ Regressions since the last run:\n');
+    regressions.forEach((c) => process.stdout.write(`    [${c.key}] ${c.title} — ${c.from} → ${c.to}\n`));
+  }
   const drifted = report.requirements.filter((r) => r.drift);
   if (drifted.length) {
     process.stdout.write('\n  Drift (declared done, not verified):\n');
@@ -275,8 +286,9 @@ function printTraceSummary(report: TraceReport, written: string[]): void {
 }
 
 function exitCode(report: TraceReport, failOn: string): number {
-  const { failing, drift } = report.stats;
+  const { failing, drift, regressions } = report.stats;
   if (failOn === 'failing' && failing > 0) return 1;
+  if (failOn === 'regression' && regressions > 0) return 1;
   if (failOn === 'drift' && (failing > 0 || drift > 0)) return 1;
   return 0;
 }

@@ -29,17 +29,19 @@ function keyCell(r: TracedRequirement): string {
   return r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.key)}</a>` : esc(r.key);
 }
 
-function row(r: TracedRequirement): string {
+function row(r: TracedRequirement, regressedFrom?: RequirementState): string {
   const tests = r.tests.length ? String(r.tests.length) : '—';
   const lastRun = r.result.lastRun ? r.result.lastRun.slice(0, 10) : '—';
   const drift = r.drift ? ' ⚠️' : '';
+  const regressed = regressedFrom !== undefined;
+  const wasMarker = regressed ? ` <span class="was">↩ was ${regressedFrom}</span>` : '';
   const search = esc(`${r.key} ${r.title} ${r.declaredStatus ?? ''}`.toLowerCase());
   return (
-    `<tr data-state="${r.state}" data-drift="${r.drift}" data-search="${search}">` +
+    `<tr data-state="${r.state}" data-drift="${r.drift}" data-regressed="${regressed}" data-search="${search}">` +
     `<td class="key">${keyCell(r)}${drift}</td>` +
     `<td>${esc(r.title)}</td>` +
     `<td>${esc(r.declaredStatus ?? '—')}</td>` +
-    `<td>${pill(r.state)}</td>` +
+    `<td>${pill(r.state)}${wasMarker}</td>` +
     `<td class="num">${tests}</td>` +
     `<td class="num">${r.result.passed}/${r.result.failed}/${r.result.skipped}</td>` +
     `<td>${lastRun}</td>` +
@@ -56,15 +58,27 @@ function statCard(label: string, value: number | string, color: string, filter: 
 
 function cards(report: TraceReport): string {
   const s = report.stats;
-  return [
+  const list = [
     statCard('Total', s.total, '#24292f', 'all'),
     statCard('Verified', s.verified, STATE_COLOR.verified, 'verified'),
     statCard('Failing', s.failing, STATE_COLOR.failing, 'failing'),
     statCard('Unverified', s.unverified, STATE_COLOR.unverified, 'unverified'),
     statCard('Specified', s.specified, STATE_COLOR.specified, 'specified'),
     statCard('Drift', s.drift, STATE_COLOR.drift, 'drift'),
-    statCard('Coverage', `${s.coveragePct}%`, STATE_COLOR.verified, 'all'),
-  ].join('');
+  ];
+  if (report.comparedTo) list.push(statCard('Regressions', s.regressions, STATE_COLOR.failing, 'regression'));
+  list.push(statCard('Coverage', `${s.coveragePct}%`, STATE_COLOR.verified, 'all'));
+  return list.join('');
+}
+
+function regressionBanner(report: TraceReport): string {
+  const n = report.regressions?.length ?? 0;
+  if (!n) return '';
+  const ref = report.comparedTo?.ref ?? 'the last run';
+  const items = (report.regressions ?? [])
+    .map((c) => `<li><code>${esc(c.key)}</code> ${esc(c.title)} — ${esc(c.from)} → <b>${esc(c.to)}</b></li>`)
+    .join('');
+  return `<section class="banner"><h2>⛔ ${n} regression${n === 1 ? '' : 's'} since ${esc(ref)}</h2><ul>${items}</ul></section>`;
 }
 
 function commitBadge(report: TraceReport): string {
@@ -102,6 +116,9 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}.key{font-family:ui-mo
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600}
 .callout{margin-top:20px;padding:14px 16px;background:#fff;border:1px solid #d0d7de;border-radius:8px}
 .callout h2{font-size:15px;margin:0 0 8px}.callout ul{margin:0;padding-left:18px}.callout code{background:#f6f8fa;padding:1px 5px;border-radius:4px}
+.banner{margin-bottom:16px;padding:12px 16px;background:#fff5f5;border:1px solid #ffc1c1;border-left:4px solid #cf222e;border-radius:8px}
+.banner h2{font-size:15px;margin:0 0 6px;color:#cf222e}.banner ul{margin:0;padding-left:18px}.banner code{background:#fff;padding:1px 5px;border-radius:4px}
+.was{display:inline-block;margin-left:6px;font-size:11px;color:#cf222e;font-weight:600}
 tr.hidden{display:none}`;
 
 const SCRIPT = `
@@ -110,8 +127,8 @@ const cards=[...document.querySelectorAll('.card')];
 const search=document.getElementById('q');
 let active='all';
 function apply(){const q=search.value.trim().toLowerCase();
-  for(const r of rows){const st=r.dataset.state,dr=r.dataset.drift==='true';
-    const okFilter=active==='all'||st===active||(active==='drift'&&dr);
+  for(const r of rows){const st=r.dataset.state,dr=r.dataset.drift==='true',rg=r.dataset.regressed==='true';
+    const okFilter=active==='all'||st===active||(active==='drift'&&dr)||(active==='regression'&&rg);
     const okText=!q||r.dataset.search.includes(q);
     r.classList.toggle('hidden',!(okFilter&&okText));}}
 cards.forEach(c=>c.addEventListener('click',()=>{active=c.dataset.filter;
@@ -122,13 +139,17 @@ search.addEventListener('input',apply);`;
 export function renderHtml(report: TraceReport): string {
   const title = report.project ? `RTM — ${esc(report.project)}` : 'Requirements Traceability';
   const head = `<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>${STYLE}</style></head>`;
+  const regMap = new Map((report.regressions ?? []).map((c) => [c.key.toUpperCase(), c.from]));
+  const rows = report.requirements.map((r) => row(r, regMap.get(r.key.toUpperCase()))).join('');
+  const compared = report.comparedTo ? ` · vs <code>${esc(report.comparedTo.ref ?? 'prior')}</code>` : '';
   const body =
     `<div class="wrap"><h1>${title}</h1>` +
-    `<div class="sub">${commitBadge(report)} · generated ${esc(report.generatedAt)}</div>` +
+    `<div class="sub">${commitBadge(report)} · generated ${esc(report.generatedAt)}${compared}</div>` +
+    regressionBanner(report) +
     `<div class="cards">${cards(report)}</div>` +
     '<div class="toolbar"><input id="q" type="search" placeholder="Search key, title, status…"></div>' +
     '<table><thead><tr><th>Key</th><th>Requirement</th><th>Declared</th><th>State</th><th>Tests</th><th>P/F/S</th><th>Last run</th></tr></thead>' +
-    `<tbody>${report.requirements.map(row).join('')}</tbody></table>` +
+    `<tbody>${rows}</tbody></table>` +
     orphanBlock(report) +
     `</div><script type="application/json" id="rtm-data">${JSON.stringify(report).replace(/</g, '\\u003c')}</script><script>${SCRIPT}</script>`;
   return `<!doctype html><html lang="en">${head}<body>${body}</body></html>\n`;
