@@ -54,12 +54,26 @@ specific git commit**, *which requirements actually hold true* — and emit a li
   sectionUpdater, config, publish, index, `requirements/*`, `report/*`); CLI + MCP wired;
   tests `test/trace*.test.js`; docs `docs/TRACEABILITY.md` + README + CLI_AND_MCP.
 
+## v2 — regression pipeline (COMPLETE)
+Turned the static RTM into a re-runnable regression system (per user request):
+- **Execution**: optional per-suite `command` + `acp trace --run` (`runner.ts`).
+- **History + regressions**: git-stamped run snapshots in `runs/`, diff vs previous/baseline →
+  ⛔ regressions (verified→failing) + improvements (`history.ts`); shown in markdown + HTML +
+  CLI summary; `--fail-on regression` gate.
+- **Portal**: `acp trace serve` — dependency-free web dashboard + Run button + history + JSON API
+  (`GET /`, `/api/report`, `/api/runs`, `POST /run`) (`serve.ts`).
+- **Triggers**: CLI/CI, portal, MCP (`requirements_trace { run }`), n8n webhook (`POST /run`); each
+  run can refresh outputs + roadmap section + Confluence page.
+- **Onboarding**: autodetect wizard (`autodetect.ts`) — `acp trace init` scans frameworks + results +
+  requirements source, writes a ready config + a `docs/requirements.md` stub.
+- 82/82 tests pass; typecheck clean; portal + run→save→diff + autodetect smoke-tested end-to-end.
+
 ## Follow-ups (not in scope this pass)
 - Live Atlassian round-trip (no creds available here — Jira/Confluence fetch paths reuse the
   already mock-tested REST client but weren't exercised against a real instance).
 - Jira label stamping of verified issues (schema field `publish.jira.verifiedLabel` reserved).
 - HTML dashboard visual QA in Chrome (extension not connected in this environment).
-- Optional: a `trace` watch / serve mode for the live HTML.
+- Optional: SSE/auto-refresh in the portal; a ready-made n8n workflow JSON for the scheduled trigger.
 
 ## Verification
 `npm test` (build + node --test). All pure/local pieces fixture-tested offline; Jira/Confluence providers reuse the mock-tested REST client.

@@ -25,8 +25,11 @@ The core conversion + REST logic lives in `src/core/` and is plain TypeScript wi
   (`acp pull-jira`, `acp pull-confluence`) + an `acp-pull.json` manifest.
 - **Push** an edited folder back recursively (`acp push-folder`).
 - **Mermaid** diagrams round-trip both ways (Jira code block / Confluence macro).
-- **Trace** — build a Requirements Traceability Matrix linking tests ↔ requirements ↔ status at the
-  current git commit (`acp trace`). See [docs/TRACEABILITY.md](docs/TRACEABILITY.md).
+- **Trace** — link tests ↔ requirements ↔ status at the current git commit (`acp trace`), re-run
+  suites on demand (`--run`), record history + flag **regressions**, and serve a web portal with a Run
+  button (`acp trace serve`). Trigger from CLI/CI, the portal, an agent (MCP `requirements_trace`), or
+  an n8n webhook (`POST /run`). Onboard with `acp trace init` (autodetect). See
+  [docs/TRACEABILITY.md](docs/TRACEABILITY.md).
 
 ## Repo map
 

@@ -9,7 +9,8 @@ import { parseMarkdownRequirements } from '../dist/core/trace/requirements/markd
 import { parseRoadmapHtml } from '../dist/core/trace/requirements/roadmapHtml.js';
 import { jiraIssueToRequirement } from '../dist/core/trace/requirements/jiraEpic.js';
 import { confluenceStorageToRequirements } from '../dist/core/trace/requirements/confluencePage.js';
-import { parseTraceConfig } from '../dist/core/trace/config.js';
+import { parseTraceConfig, traceConfigSchema } from '../dist/core/trace/config.js';
+import { autodetect } from '../dist/core/trace/autodetect.js';
 import { runTrace, renderAll } from '../dist/core/trace/index.js';
 
 /* ── markdown requirements ── */
@@ -84,6 +85,32 @@ test('parseTraceConfig: accepts a minimal valid config', () => {
 test('parseTraceConfig: rejects an invalid config with a helpful error', () => {
   assert.throws(() => parseTraceConfig('{}'), /scopes/);
   assert.throws(() => parseTraceConfig('{ not json'), /not valid JSON/);
+});
+
+/* ── autodetect wizard ── */
+
+test('autodetect: finds frameworks + a requirements source, emits a valid config', () => {
+  const root = mkdtempSync(join(tmpdir(), 'rtm-auto-'));
+  mkdirSync(join(root, 'e2e'));
+  mkdirSync(join(root, 'svc'));
+  writeFileSync(join(root, 'e2e', 'a.spec.ts'), `test('a @PROJ-1', ()=>{})`);
+  writeFileSync(join(root, 'svc', 'XTests.cs'), 'public class X {}');
+
+  const plan = autodetect(root, 'Demo');
+  const techs = plan.config.scopes[0].tests.map((t) => t.tech);
+  assert.ok(techs.includes('playwright'));
+  assert.ok(techs.includes('xunit'));
+  assert.equal(plan.createRequirementsStub, 'docs/requirements.md'); // none found → stub
+  assert.doesNotThrow(() => traceConfigSchema.parse(plan.config)); // config is valid
+});
+
+test('autodetect: prefers an existing requirements source over a stub', () => {
+  const root = mkdtempSync(join(tmpdir(), 'rtm-auto2-'));
+  mkdirSync(join(root, 'docs'));
+  writeFileSync(join(root, 'docs', 'requirements.md'), '- [ ] PROJ-1 X');
+  const plan = autodetect(root);
+  assert.equal(plan.createRequirementsStub, null);
+  assert.equal(plan.config.scopes[0].requirements[0].type, 'markdown');
 });
 
 /* ── end-to-end (offline) ── */

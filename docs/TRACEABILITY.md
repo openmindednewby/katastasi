@@ -30,10 +30,16 @@ the pattern with `keyPattern` in the config (any regex, e.g. `REQ-\d+` or `#\d+`
 ## Quick start
 
 ```bash
-acp trace init --project "My Product" --jira-epic PROJ-100   # writes acp-trace.json
-# edit acp-trace.json — point the globs at your tests and the results at your reporter output
-acp trace --config acp-trace.json
+acp trace init --project "My Product"        # autodetects your test frameworks + a requirements source
+acp trace serve                              # open the portal: live dashboard + a Run button
+# …or headless:
+acp trace --config acp-trace.json --run      # (re)run the suites, trace, save a run, flag regressions
 ```
+
+`acp trace init` scans the repo (Playwright/Jest/Vitest/node:test/xUnit), guesses each suite's run
+command + result paths, finds a requirements source (or creates `docs/requirements.md`), and writes a
+ready `acp-trace.json`. Override with `--jira-epic`, `--markdown`, `--roadmap`, `--confluence-page`, or
+`--template` for a plain template.
 
 ## Linking tests to requirements (hybrid)
 
@@ -98,13 +104,15 @@ Without results a referenced requirement is **🧪 unverified**; with a passing 
         { "type": "markdown", "path": "docs/requirements.md" }
       ],
       "tests": [
-        { "tech": "playwright", "globs": ["e2e/**/*.spec.ts"], "results": ["e2e/results/*.xml"] },
-        { "tech": "jest", "globs": ["src/**/*.test.ts"], "results": ["coverage/junit.xml"] },
-        { "tech": "xunit", "globs": ["Services/**/*Tests.cs"], "results": ["Services/**/TestResults/*.trx"] }
+        { "tech": "playwright", "globs": ["e2e/**/*.spec.ts"], "command": "npx playwright test", "results": ["e2e/results/*.xml"] },
+        { "tech": "jest", "globs": ["src/**/*.test.ts"], "command": "npx jest", "results": ["coverage/junit.xml"] },
+        { "tech": "xunit", "globs": ["Services/**/*Tests.cs"], "command": "dotnet test --logger trx", "results": ["Services/**/TestResults/*.trx"] }
       ],
       "mapping": "docs/traceability.yml"
     }
   ],
+  "history": { "dir": "runs" },
+  "portal": { "port": 8787 },
   "output": { "markdown": "docs/RTM.md", "html": "docs/rtm.html", "json": "docs/rtm.json" },
   "publish": {
     "roadmap": { "path": "docs/roadmap.md", "sectionId": "rtm" },
@@ -135,11 +143,59 @@ source(s). Requirements from all scopes are merged by key. Use `name` to label w
 - `publish.confluence` — `acp trace --publish-confluence` updates that Confluence page in place
   (markdown → storage format, version bumped).
 
+## Re-run on demand, history & regressions
+
+Give a test group a `command` and `acp trace --run` will **execute it** (regenerating its JUnit/TRX)
+before tracing — so a run reflects the code as it is *right now*. Without `--run`, the tool just
+ingests whatever result files already exist (e.g. from CI).
+
+When `history` is configured, every run is saved as a **git-stamped JSON snapshot** in `runs/`, and the
+current run is **diffed against the previous one** (or a named `history.baseline`). Requirements whose
+state got worse — e.g. `verified → failing` — are reported as **⛔ regressions** (and the inverse as
+improvements). That's your regression check across commits.
+
+```bash
+acp trace --run                       # run suites → trace → save snapshot → diff vs last run
+acp trace --no-save                   # trace without recording history
+acp trace --no-compare                # skip the diff
+```
+
+## The portal (`acp trace serve`)
+
+A built-in, dependency-free web portal — live dashboard + a **Run** button + run history + the
+regression banner — and a small HTTP API so anything can trigger a run.
+
+```bash
+acp trace serve --config acp-trace.json --port 8787   # http://127.0.0.1:8787
+```
+
+| Route | Purpose |
+|-------|---------|
+| `GET /` | the live dashboard (Run button, history, regression banner) |
+| `GET /api/report` | the current report as JSON |
+| `GET /api/runs` | recent run snapshot filenames |
+| `POST /run` | trigger a run. `?run=1` executes the suites; `?publish=1` also updates the Confluence page. Writes the configured outputs + roadmap section. |
+
+## Trigger it from anywhere
+
+Same engine, four front doors — all honour the same config:
+
+- **Portal** — the Run button (`POST /run`).
+- **CLI / CI** — `acp trace --run --fail-on regression` as a pipeline step.
+- **Agent (MCP)** — the `requirements_trace` tool with `run: true`.
+- **n8n / any webhook** — call the portal: `curl -X POST http://host:8787/run?run=1` (an n8n HTTP
+  Request node pointed at `/run` turns a schedule or webhook into a regression run).
+
+Each run can also refresh where humans/agents look: it writes `output.*`, folds the roadmap section,
+and (with `?publish=1` / `--publish-confluence`) updates the Confluence page — so Jira/Confluence/local
+md all stay current automatically.
+
 ## CI gate
 
 ```bash
-acp trace --config acp-trace.json --fail-on failing   # exit 1 if any requirement is failing
-acp trace --config acp-trace.json --fail-on drift     # exit 1 if anything is failing OR drifting
+acp trace --config acp-trace.json --fail-on failing      # exit 1 if any requirement is failing
+acp trace --config acp-trace.json --fail-on drift        # exit 1 if anything is failing OR drifting
+acp trace --config acp-trace.json --run --fail-on regression  # run suites; exit 1 on any regression
 ```
 
 Run it after your test suites (so the result files exist), commit `docs/RTM.md`, and the diff shows
@@ -147,12 +203,14 @@ exactly which requirements changed state at that commit.
 
 ## MCP
 
-Agents can call **`requirements_trace`** (`{ configPath?, format? }`) to get the markdown report +
-structured stats for the current commit. See [CLI_AND_MCP.md](CLI_AND_MCP.md).
+Agents can call **`requirements_trace`** (`{ configPath?, format?, run? }`) to get the markdown report +
+structured stats (incl. regressions) for the current commit, optionally re-running the suites first.
+See [CLI_AND_MCP.md](CLI_AND_MCP.md).
 
 ## How it works (internals)
 
-`src/core/trace/` — `requirements/*` providers → `testScanner` (tags + mapping) + `results` (JUnit/TRX)
-→ `computeState` (the join) → `report/markdown` + `report/html` → `publish` (files / section / Confluence).
-`gitContext` stamps the commit. Everything except the live Jira/Confluence fetch is pure and unit-tested
-offline (`test/trace*.test.js`).
+`src/core/trace/` — `requirements/*` providers → `runner` (optional suite execution) → `testScanner`
+(tags + mapping) + `results` (JUnit/TRX) → `computeState` (the join) → `history` (save + regression
+diff) → `report/markdown` + `report/html` → `publish` (files / section / Confluence) → `serve` (portal).
+`autodetect` powers `trace init`; `gitContext` stamps the commit. Everything except the live
+Jira/Confluence fetch is pure and unit-tested offline (`test/trace*.test.js`).

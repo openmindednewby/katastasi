@@ -5,7 +5,7 @@
  * Publishes markdown files to Jira / Confluence via the n8n publish webhooks.
  * The agent-facing equivalent is the MCP server (src/mcp/server.ts), which takes raw markdown.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Command } from 'commander';
 import { publishJira } from '../core/jira.js';
@@ -14,6 +14,7 @@ import { pullJira, pullConfluence } from '../core/pull.js';
 import { pushFolder } from '../core/push.js';
 import { getConfig } from '../core/config.js';
 import { loadTraceConfig, starterConfig, DEFAULT_CONFIG_FILENAME } from '../core/trace/config.js';
+import { autodetect, REQUIREMENTS_STUB } from '../core/trace/autodetect.js';
 import { runTrace } from '../core/trace/index.js';
 import { serve } from '../core/trace/serve.js';
 import { writeOutputs, updateRoadmapSection, publishConfluenceReport } from '../core/trace/publish.js';
@@ -248,13 +249,14 @@ traceCmd
 
 traceCmd
   .command('init')
-  .description('Scaffold a starter acp-trace.json.')
+  .description('Scaffold acp-trace.json. Autodetects test frameworks + a requirements source by default.')
   .option('--out <path>', 'output path', DEFAULT_CONFIG_FILENAME)
   .option('--project <name>', 'project label')
-  .option('--jira-epic <key>', 'requirement source: a Jira epic key/URL')
-  .option('--markdown <path>', 'requirement source: a markdown spec file')
-  .option('--roadmap <path>', 'requirement source: a roadmap HTML file')
-  .option('--confluence-page <id>', 'requirement source: a Confluence page id')
+  .option('--jira-epic <key>', 'requirement source: a Jira epic key/URL (skips autodetect)')
+  .option('--markdown <path>', 'requirement source: a markdown spec file (skips autodetect)')
+  .option('--roadmap <path>', 'requirement source: a roadmap HTML file (skips autodetect)')
+  .option('--confluence-page <id>', 'requirement source: a Confluence page id (skips autodetect)')
+  .option('--template', 'write a plain template instead of autodetecting', false)
   .option('--force', 'overwrite an existing config', false)
   .action((opts) => {
     try {
@@ -262,15 +264,32 @@ traceCmd
       if (existsSync(out) && !opts.force) {
         throw new Error(`${opts.out} already exists. Use --force to overwrite.`);
       }
-      const content = starterConfig({
-        project: opts.project,
-        jiraEpic: opts.jiraEpic,
-        markdownPath: opts.markdown,
-        roadmapPath: opts.roadmap,
-        confluencePageId: opts.confluencePage,
-      });
-      writeFileSync(out, content, 'utf8');
-      process.stdout.write(`\n  Wrote ${opts.out}\n  Edit it, then run:  acp trace --config ${opts.out}\n`);
+      const hinted = opts.jiraEpic || opts.markdown || opts.roadmap || opts.confluencePage || opts.template;
+      if (hinted) {
+        const content = starterConfig({
+          project: opts.project,
+          jiraEpic: opts.jiraEpic,
+          markdownPath: opts.markdown,
+          roadmapPath: opts.roadmap,
+          confluencePageId: opts.confluencePage,
+        });
+        writeFileSync(out, content, 'utf8');
+        process.stdout.write(`\n  Wrote ${opts.out}\n  Edit it, then run:  acp trace --config ${opts.out}\n`);
+        return;
+      }
+      // Autodetect (default).
+      const repoDir = process.cwd();
+      const plan = autodetect(repoDir, opts.project);
+      plan.notes.forEach((n) => process.stdout.write(`  ${n}\n`));
+      if (plan.createRequirementsStub) {
+        const stubPath = resolve(repoDir, plan.createRequirementsStub);
+        if (!existsSync(stubPath)) {
+          mkdirSync(dirname(stubPath), { recursive: true });
+          writeFileSync(stubPath, REQUIREMENTS_STUB, 'utf8');
+        }
+      }
+      writeFileSync(out, `${JSON.stringify(plan.config, null, 2)}\n`, 'utf8');
+      process.stdout.write(`\n  Wrote ${opts.out}\n  Next:  acp trace serve --config ${opts.out}   (or: acp trace --config ${opts.out} --run)\n`);
     } catch (err) {
       fail(err);
     }

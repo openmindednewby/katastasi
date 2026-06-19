@@ -220,17 +220,20 @@ server.registerTool(
       '(Jira epic / roadmap HTML / Confluence page / markdown), scan the configured test sources for ' +
       '`@KEY` tags + xUnit `[Trait]` + a mapping file, ingest JUnit/TRX results, and report — at the ' +
       'current git commit — which requirements are verified / failing / unverified / specified, plus ' +
-      'drift (declared done but not verified) and orphan tests. Returns the markdown report + stats.',
+      'drift (declared done but not verified), orphan tests, and regressions vs the previous run. ' +
+      'Set `run: true` to (re)execute each configured suite command before tracing. Returns the ' +
+      'markdown report + stats.',
     inputSchema: {
       configPath: z.string().optional().describe('Path to acp-trace.json (default: ./acp-trace.json).'),
       format: z.enum(['markdown', 'json']).optional().describe('Return the markdown report (default) or raw JSON.'),
+      run: z.boolean().optional().describe('Execute each test group\'s command before tracing (re-run the suites).'),
     },
   },
   async (args) => {
     try {
       const configPath = resolve(args.configPath ?? 'acp-trace.json');
       const config = loadTraceConfig(configPath);
-      const report = await runTrace(config, dirname(configPath));
+      const report = await runTrace(config, dirname(configPath), { run: args.run });
       const rendered = renderAll(report);
       const text = args.format === 'json' ? rendered.json : rendered.markdown;
       return {

@@ -324,10 +324,15 @@ living report (markdown + a self-contained HTML dashboard) that you can commit, 
 doc, or publish to Confluence.
 
 ```bash
-acp trace init --project "My Product" --jira-epic PROJ-100   # scaffold acp-trace.json
-acp trace --config acp-trace.json                            # build the report
-acp trace --config acp-trace.json --fail-on drift            # CI gate (exit 1 on drift/failing)
+acp trace init                       # autodetect frameworks + requirements → acp-trace.json
+acp trace serve                      # web portal: live dashboard + a Run button + history
+acp trace --run --fail-on regression # CI: re-run suites, trace, fail on any regression vs last run
 ```
+
+Re-run on demand from the **portal**, the **CLI/CI**, an **agent** (MCP `requirements_trace`), or an
+**n8n webhook** (`POST /run`). Each run is saved git-stamped to `runs/` and diffed against the previous
+one, so a requirement going **verified → failing** shows up as a **⛔ regression**. Every run can also
+refresh the Confluence page + local `.md` so Jira/Confluence/markdown stay current.
 
 **Linking is hybrid** — tag tests inline and/or list them in a mapping file:
 
