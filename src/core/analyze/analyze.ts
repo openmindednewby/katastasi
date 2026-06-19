@@ -6,11 +6,12 @@
  * knows exactly what to build and how to verify it. The AI call is injectable for deterministic tests.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { TraceConfig } from '../trace/config.js';
 import { gatherRequirements } from '../trace/index.js';
 import { globFiles } from '../trace/glob.js';
 import { scaffoldTest } from '../trace/scaffoldTest.js';
+import { generateQuestions } from '../questions/generate.js';
 import { defaultChat, extractJson, type ChatFn, type ChatMessage } from './ai.js';
 
 export interface AnalyzeTaskTest {
@@ -34,6 +35,10 @@ export interface AnalyzeResult {
   files: string[];
   tasks: AnalyzeTask[];
   scaffolded: string[];
+  /** 'ask' (produced an open-questions form) or 'full' (produced the tech docs + tasks). */
+  mode: 'ask' | 'full';
+  /** In ask mode, the path of the generated interactive form. */
+  questionsHtml?: string;
 }
 
 export interface AnalyzeOptions {
@@ -47,6 +52,10 @@ export interface AnalyzeOptions {
   maxContextBytes?: number;
   /** Scaffold the per-task test stubs into the repo (default true). */
   scaffold?: boolean;
+  /** Ask mode: produce an open-questions form (decisions to resolve) instead of the final docs. */
+  ask?: boolean;
+  /** Full mode: stakeholder answers (markdown) to incorporate into the analysis. */
+  answers?: string;
 }
 
 const SYSTEM = `You are a senior software architect. Given business requirements and a codebase file list,
@@ -111,6 +120,42 @@ export function buildPrompt(
   ];
 }
 
+const ASK_SYSTEM = `You are a senior software architect. Given business requirements and a codebase, do a
+gap analysis and then surface the OPEN DECISIONS a stakeholder must resolve before implementation.
+Respond with ONLY a JSON object:
+{
+  "gapAnalysis": "<markdown: implemented vs missing vs partial, citing files>",
+  "openQuestionsMarkdown": "<a markdown doc with EXACTLY this structure so it renders as an interactive form:\\n# <Title>\\n\\n## Flow overview\\n\\\`\\\`\\\`mermaid\\nflowchart TD\\n  START[\\"Start\\"] --> Q1{\\"Q1 · <decision?>\\"}\\n  Q1 -->|<Option A>| ...\\n  Q1 -->|<Option B>| ...\\n  classDef pending fill:#ffe8b3,stroke:#e6a700;\\n  class Q1 pending;\\n\\\`\\\`\\\`\\n\\n## Open questions (QA)\\n- **Q1 — <decision?>:**\\n  - [ ] <Option A>\\n  - [ ] <Option B>\\n(one Q per real decision; each decision node tagged Q<n> in the diagram label AND in the QA list, options in the same order as the node's outgoing edges)>"
+}`;
+
+/** Build the ASK prompt (produce an open-questions form for the unclear decisions). */
+export function buildAskPrompt(
+  requirements: Array<{ key: string; title: string; declaredStatus: string | null }>,
+  codeContext: string,
+  codeFileCount = 0,
+): ChatMessage[] {
+  const reqList = requirements.map((r) => `- ${r.key}: ${r.title} [${r.declaredStatus ?? 'unknown'}]`).join('\n');
+  return [
+    { role: 'system', content: ASK_SYSTEM },
+    {
+      role: 'user',
+      content: `REQUIREMENTS:\n${reqList}\n\nCODEBASE (${codeFileCount} file(s)):\n${codeContext}\n\nSurface the open decisions, then output the JSON.`,
+    },
+  ];
+}
+
+/** Coerce the ask-mode reply. */
+export function validateAsk(raw: unknown): { gapAnalysis: string; openQuestionsMarkdown: string } {
+  const o = (raw ?? {}) as { gapAnalysis?: unknown; openQuestionsMarkdown?: unknown };
+  return {
+    gapAnalysis: typeof o.gapAnalysis === 'string' ? o.gapAnalysis : '(none)',
+    openQuestionsMarkdown:
+      typeof o.openQuestionsMarkdown === 'string' && o.openQuestionsMarkdown.includes('## Open questions')
+        ? o.openQuestionsMarkdown
+        : '# Open questions\n\n## Flow overview\n\n```mermaid\nflowchart TD\n  START["Start"] --> DONE["No open decisions"]\n```\n\n## Open questions (QA)\n\n- **Q1 — Proceed?:**\n  - [ ] Yes\n',
+  };
+}
+
 /** Coerce the model's JSON into a valid AnalyzeOutput. */
 export function validateOutput(raw: unknown): AnalyzeOutput {
   const o = (raw ?? {}) as Partial<AnalyzeOutput>;
@@ -146,17 +191,34 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
   const codeGlobs = config.scopes.flatMap((s) => s.code ?? []);
   const codeFiles = codeGlobs.length ? globFiles(repoDir, codeGlobs).slice(0, opts.maxFiles ?? 200) : [];
   const { context } = collectCodeContext(repoDir, codeFiles, { maxTotalBytes: opts.maxContextBytes });
-
-  const reply = await chat(buildPrompt(requirements, context, codeFiles.length));
-  const out = validateOutput(extractJson(reply));
-
-  const outDir = resolve(baseDir, opts.outDir ?? 'tech-analysis');
-  mkdirSync(join(outDir, 'tasks'), { recursive: true });
+  const outDirRel = opts.outDir ?? 'tech-analysis';
+  const outDir = resolve(baseDir, outDirRel);
   const files: string[] = [];
   const write = (rel: string, content: string) => {
+    mkdirSync(dirname(join(outDir, rel)), { recursive: true });
     writeFileSync(join(outDir, rel), content, 'utf8');
-    files.push(join(opts.outDir ?? 'tech-analysis', rel));
+    files.push(join(outDirRel, rel));
   };
+
+  // ── ASK mode: surface the open decisions as an interactive form ──────────────
+  if (opts.ask) {
+    const ask = validateAsk(extractJson(await chat(buildAskPrompt(requirements, context, codeFiles.length))));
+    write('gap-analysis.md', `# Gap Analysis\n\n${ask.gapAnalysis}\n`);
+    write('open-questions.md', ask.openQuestionsMarkdown);
+    const { html } = generateQuestions(ask.openQuestionsMarkdown, { mermaid: 'cdn', outPath: join(outDir, 'open-questions.html') });
+    writeFileSync(join(outDir, 'open-questions.html'), html, 'utf8');
+    files.push(join(outDirRel, 'open-questions.html'));
+    return { outDir, files, tasks: [], scaffolded: [], mode: 'ask', questionsHtml: join(outDirRel, 'open-questions.html') };
+  }
+
+  // ── FULL mode: produce the tech docs + tasks (+ stakeholder answers if supplied) ──
+  const messages = buildPrompt(requirements, context, codeFiles.length);
+  if (opts.answers && opts.answers.trim()) {
+    messages[1].content += `\n\nSTAKEHOLDER ANSWERS (incorporate these resolved decisions):\n${opts.answers}`;
+  }
+  const out = validateOutput(extractJson(await chat(messages)));
+
+  mkdirSync(join(outDir, 'tasks'), { recursive: true });
 
   write('gap-analysis.md', `# Gap Analysis\n\n${out.gapAnalysis}\n`);
   write('technical-analysis.md', out.technicalAnalysis.startsWith('#') ? `${out.technicalAnalysis}\n` : `# Technical Analysis\n\n${out.technicalAnalysis}\n`);
@@ -176,5 +238,5 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
       }
     }
   }
-  return { outDir, files, tasks: out.tasks, scaffolded };
+  return { outDir, files, tasks: out.tasks, scaffolded, mode: 'full' };
 }

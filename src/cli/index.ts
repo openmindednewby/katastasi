@@ -194,6 +194,8 @@ program
   .description('AI: requirements + codebase → gap analysis + technical-analysis (Confluence) + Jira tasks + scaffolded tests.')
   .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
   .option('--out <dir>', 'output folder', 'tech-analysis')
+  .option('--ask', 'first pass: produce an open-questions form for the decisions to resolve', false)
+  .option('--answers <file>', 'second pass: incorporate filled-in stakeholder answers (markdown)')
   .option('--no-scaffold', 'do not scaffold the per-task test stubs')
   .option('--publish-confluence', 'also publish technical-analysis.md to Confluence', false)
   .option('--publish-jira', 'also publish the tasks (epic + stories) to Jira', false)
@@ -202,8 +204,14 @@ program
       const configPath = resolve(opts.config);
       const baseDir = dirname(configPath);
       const config = loadTraceConfig(configPath);
-      process.stdout.write('\n  Analysing requirements vs codebase (AI)…\n');
-      const r = await analyze(config, baseDir, { outDir: opts.out, scaffold: opts.scaffold });
+      const answers = opts.answers ? read(resolve(opts.answers)) : undefined;
+      process.stdout.write(`\n  Analysing requirements vs codebase (AI)…${opts.ask ? '  [ask: surfacing open decisions]' : ''}\n`);
+      const r = await analyze(config, baseDir, { outDir: opts.out, scaffold: opts.scaffold, ask: opts.ask, answers });
+      if (r.mode === 'ask') {
+        r.files.forEach((f) => process.stdout.write(`    + ${f}\n`));
+        process.stdout.write(`\n  Open the form, collect answers, then:  acp analyze --answers <answers>.md\n  (form: ${r.questionsHtml})\n`);
+        return;
+      }
       process.stdout.write(`  Wrote ${r.files.length} file(s) → ${opts.out}/  ·  ${r.tasks.length} task(s)  ·  ${r.scaffolded.length} test stub(s)\n`);
       r.files.forEach((f) => process.stdout.write(`    + ${f}\n`));
       r.scaffolded.forEach((f) => process.stdout.write(`    + ${f} (test stub)\n`));

@@ -393,13 +393,18 @@ server.registerTool(
       configPath: z.string().optional().describe('Path to acp-trace.json (default: ./acp-trace.json).'),
       out: z.string().optional().describe('Output folder (default: tech-analysis).'),
       scaffold: z.boolean().optional().describe('Scaffold the per-task test stubs (default true).'),
+      ask: z.boolean().optional().describe('First pass: produce an open-questions form for unresolved decisions instead of the final docs.'),
+      answers: z.string().optional().describe('Second pass: filled-in stakeholder answers (markdown) to incorporate.'),
     },
   },
   async (args) => {
     try {
       const configPath = resolve(args.configPath ?? 'acp-trace.json');
       const config = loadTraceConfig(configPath);
-      const r = await analyze(config, dirname(configPath), { outDir: args.out, scaffold: args.scaffold });
+      const r = await analyze(config, dirname(configPath), { outDir: args.out, scaffold: args.scaffold, ask: args.ask, answers: args.answers });
+      if (r.mode === 'ask') {
+        return { content: [{ type: 'text' as const, text: `Wrote an open-questions form: ${r.questionsHtml}. Share it, collect answers, then call analyze again with { answers }.` }], structuredContent: { mode: 'ask', files: r.files, questionsHtml: r.questionsHtml } };
+      }
       const lines = [
         `Wrote ${r.files.length} file(s) to ${args.out ?? 'tech-analysis'}/: gap-analysis.md, technical-analysis.md, tasks/`,
         `${r.tasks.length} task(s): ${r.tasks.map((t) => t.key).join(', ')}`,

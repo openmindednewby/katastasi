@@ -74,4 +74,34 @@ test('analyze: writes gap analysis + tech doc + tasks and scaffolds a tagged tes
   // a tagged e2e stub was scaffolded
   assert.equal(r.scaffolded[0], 'e2e/proj-1.spec.ts');
   assert.match(readFileSync(join(root, 'e2e', 'proj-1.spec.ts'), 'utf8'), /@PROJ-1/);
+  assert.equal(r.mode, 'full');
+});
+
+const ASK_REPLY = JSON.stringify({
+  gapAnalysis: 'Login flow undecided.',
+  openQuestionsMarkdown: '# Login decisions\n\n## Flow overview\n\n```mermaid\nflowchart TD\n  START["Start"] --> Q1{"Q1 · SSO or password?"}\n  Q1 -->|SSO| A[SSO]\n  Q1 -->|Password| B[Password]\n  classDef pending fill:#ffe8b3;\n  class Q1 pending;\n```\n\n## Open questions (QA)\n\n- **Q1 — SSO or password?:**\n  - [ ] SSO\n  - [ ] Password\n',
+});
+
+test('analyze --ask: writes an open-questions form (gap-analysis + .md + .html)', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'rtm-ask-'));
+  mkdirSync(join(root, 'docs'), { recursive: true });
+  writeFileSync(join(root, 'docs', 'requirements.md'), '- [ ] PROJ-1 Login');
+  const config = parseTraceConfig(JSON.stringify({ scopes: [{ requirements: [{ type: 'markdown', path: 'docs/requirements.md' }], tests: [] }] }));
+  const r = await analyze(config, root, { chat: async () => ASK_REPLY, outDir: 'ta', ask: true });
+  assert.equal(r.mode, 'ask');
+  assert.equal(r.tasks.length, 0);
+  assert.ok(existsSync(join(root, 'ta', 'open-questions.md')));
+  assert.match(readFileSync(join(root, 'ta', 'open-questions.html'), 'utf8'), /^<!doctype html>/i);
+  assert.match(readFileSync(join(root, 'ta', 'open-questions.html'), 'utf8'), /SSO or password/);
+});
+
+test('analyze --answers: incorporates the answers into the full prompt', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'rtm-ans-'));
+  mkdirSync(join(root, 'docs'), { recursive: true });
+  writeFileSync(join(root, 'docs', 'requirements.md'), '- [ ] PROJ-1 Login');
+  const config = parseTraceConfig(JSON.stringify({ scopes: [{ requirements: [{ type: 'markdown', path: 'docs/requirements.md' }], tests: [] }] }));
+  let seenAnswers = false;
+  const chat = async (msgs) => { seenAnswers = /STAKEHOLDER ANSWERS[\s\S]*use password auth/.test(msgs[1].content); return FAKE_REPLY; };
+  await analyze(config, root, { chat, outDir: 'ta', answers: '- Q1: use password auth', scaffold: false });
+  assert.equal(seenAnswers, true); // the answers reached the model
 });
