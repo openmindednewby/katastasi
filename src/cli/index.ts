@@ -5,13 +5,18 @@
  * Publishes markdown files to Jira / Confluence via the n8n publish webhooks.
  * The agent-facing equivalent is the MCP server (src/mcp/server.ts), which takes raw markdown.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { Command } from 'commander';
 import { publishJira } from '../core/jira.js';
 import { publishConfluence } from '../core/confluence.js';
 import { pullJira, pullConfluence } from '../core/pull.js';
 import { pushFolder } from '../core/push.js';
 import { getConfig } from '../core/config.js';
+import { loadTraceConfig, starterConfig, DEFAULT_CONFIG_FILENAME } from '../core/trace/config.js';
+import { runTrace } from '../core/trace/index.js';
+import { writeOutputs, updateRoadmapSection, publishConfluenceReport } from '../core/trace/publish.js';
+import type { TraceReport } from '../core/trace/types.js';
 import type {
   JiraPublishResult,
   JiraPullResult,
@@ -174,6 +179,107 @@ program
       fail(err);
     }
   });
+
+const traceCmd = program
+  .command('trace')
+  .description('Build a Requirements Traceability report (tests ↔ requirements ↔ status) from acp-trace.json.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--md <path>', 'also write the markdown report to this path')
+  .option('--html <path>', 'also write the HTML dashboard to this path')
+  .option('--json <path>', 'also write the JSON report to this path')
+  .option('--roadmap <path>', 'fold the report into this existing doc (between acp:trace markers)')
+  .option('--section <id>', 'section id used with --roadmap', 'rtm')
+  .option('--publish-confluence', 'update the Confluence page from config.publish.confluence', false)
+  .option('--fail-on <level>', 'exit non-zero on: none | drift | failing', 'none')
+  .action(async (opts) => {
+    try {
+      const configPath = resolve(opts.config);
+      const baseDir = dirname(configPath);
+      const config = loadTraceConfig(configPath);
+      process.stdout.write(`\n  Tracing requirements (config: ${opts.config})\n`);
+
+      const report = await runTrace(config, baseDir);
+
+      // File outputs: config.output merged with CLI overrides.
+      const output = {
+        markdown: opts.md ?? config.output?.markdown,
+        html: opts.html ?? config.output?.html,
+        json: opts.json ?? config.output?.json,
+      };
+      const written = writeOutputs(report, output, baseDir);
+
+      // Roadmap section: CLI flag wins, else config.publish.roadmap.
+      const roadmap = opts.roadmap
+        ? { path: opts.roadmap, sectionId: opts.section }
+        : config.publish?.roadmap;
+      if (roadmap) written.push(updateRoadmapSection(report, roadmap, baseDir));
+
+      printTraceSummary(report, written);
+
+      if (opts.publishConfluence && config.publish?.confluence) {
+        const url = await publishConfluenceReport(report, config.publish.confluence);
+        process.stdout.write(`  Published to Confluence: ${url}\n`);
+      }
+
+      process.exit(exitCode(report, opts.failOn));
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+traceCmd
+  .command('init')
+  .description('Scaffold a starter acp-trace.json.')
+  .option('--out <path>', 'output path', DEFAULT_CONFIG_FILENAME)
+  .option('--project <name>', 'project label')
+  .option('--jira-epic <key>', 'requirement source: a Jira epic key/URL')
+  .option('--markdown <path>', 'requirement source: a markdown spec file')
+  .option('--roadmap <path>', 'requirement source: a roadmap HTML file')
+  .option('--confluence-page <id>', 'requirement source: a Confluence page id')
+  .option('--force', 'overwrite an existing config', false)
+  .action((opts) => {
+    try {
+      const out = resolve(opts.out);
+      if (existsSync(out) && !opts.force) {
+        throw new Error(`${opts.out} already exists. Use --force to overwrite.`);
+      }
+      const content = starterConfig({
+        project: opts.project,
+        jiraEpic: opts.jiraEpic,
+        markdownPath: opts.markdown,
+        roadmapPath: opts.roadmap,
+        confluencePageId: opts.confluencePage,
+      });
+      writeFileSync(out, content, 'utf8');
+      process.stdout.write(`\n  Wrote ${opts.out}\n  Edit it, then run:  acp trace --config ${opts.out}\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+function printTraceSummary(report: TraceReport, written: string[]): void {
+  const s = report.stats;
+  const g = report.git;
+  const commit = g.shortSha ? `${g.shortSha}${g.branch ? ` (${g.branch})` : ''}${g.dirty ? ' +dirty' : ''}` : '(no git)';
+  process.stdout.write(`\n  Commit: ${commit}\n`);
+  process.stdout.write(
+    `  ✅ ${s.verified} verified  ❌ ${s.failing} failing  🧪 ${s.unverified} unverified  📋 ${s.specified} specified\n`,
+  );
+  process.stdout.write(`  ⚠️  ${s.drift} drift   👻 ${s.orphanTests} orphan tests   Coverage: ${s.coveragePct}%\n`);
+  if (written.length) process.stdout.write(`  Wrote: ${written.join(', ')}\n`);
+  const drifted = report.requirements.filter((r) => r.drift);
+  if (drifted.length) {
+    process.stdout.write('\n  Drift (declared done, not verified):\n');
+    drifted.forEach((r) => process.stdout.write(`    [${r.key}] ${r.title} — ${r.state}\n`));
+  }
+}
+
+function exitCode(report: TraceReport, failOn: string): number {
+  const { failing, drift } = report.stats;
+  if (failOn === 'failing' && failing > 0) return 1;
+  if (failOn === 'drift' && (failing > 0 || drift > 0)) return 1;
+  return 0;
+}
 
 function printPushResult(result: PushFolderResult): void {
   if (result.kind === 'jira') {

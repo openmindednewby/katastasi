@@ -312,6 +312,35 @@ acp push-folder ./out              # update issues/pages in place, recursively
 acp push-folder ./out --dry-run    # preview the create/update actions
 ```
 
+### Requirements Traceability (tests ↔ requirements ↔ status)
+
+Answer **"which requirements actually hold true — at this commit?"** by linking your E2E + unit tests
+(Playwright / Jest / Vitest / `node:test` / xUnit) to requirements (a Jira epic, `roadmap.html`, a
+Confluence spec page, or a markdown spec) and joining them with the test **results**. The output is a
+living report (markdown + a self-contained HTML dashboard) that you can commit, fold into an existing
+doc, or publish to Confluence.
+
+```bash
+acp trace init --project "My Product" --jira-epic PROJ-100   # scaffold acp-trace.json
+acp trace --config acp-trace.json                            # build the report
+acp trace --config acp-trace.json --fail-on drift            # CI gate (exit 1 on drift/failing)
+```
+
+**Linking is hybrid** — tag tests inline and/or list them in a mapping file:
+
+| Tech | Inline tag |
+|------|------------|
+| Playwright / Jest / Vitest / node | `test('login works @PROJ-123', …)` or `// @req PROJ-123` |
+| xUnit (C#) | `[Trait("req", "PROJ-123")]` |
+| any | an external `traceability.yml` / `.json` mapping `KEY → files` |
+
+Each requirement is classified **✅ verified** (a passing test references it), **❌ failing**,
+**🧪 unverified** (referenced but not run), or **📋 specified** (no test) — and flagged **⚠️ drift**
+when it's declared *done* but isn't verified (the signal that "done" might not be true). Tests tagging
+a non-existent key surface as **👻 orphan tests**. Every report is stamped with the git SHA + branch +
+dirty flag. Agents can call the MCP tool `requirements_trace`. Full guide:
+[docs/TRACEABILITY.md](docs/TRACEABILITY.md).
+
 ## Team Context Profiles
 
 Inject your team's tech stack, conventions, and project management config into every prompt. This makes AI output specific to your environment instead of generic.

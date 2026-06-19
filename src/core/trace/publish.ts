@@ -1,0 +1,83 @@
+/**
+ * Sinks for a TraceReport. The report is one canonical object; publishing is a separate, configurable
+ * step: write files (markdown/html/json), fold a section into an existing doc (roadmap), or update a
+ * Confluence page in place. Confluence reuses the direct-REST client + the markdown→storage converter.
+ */
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { getPage, updatePage, pageWebUrl } from '../atlassian.js';
+import { getConfluenceCreds } from '../config.js';
+import { markdownToStorage } from '../markdownToStorage.js';
+import type { TraceConfig } from './config.js';
+import { renderHtml } from './report/html.js';
+import { renderMarkdown } from './report/markdown.js';
+import { updateSection } from './sectionUpdater.js';
+import type { TraceReport } from './types.js';
+
+function abs(baseDir: string, p: string): string {
+  return isAbsolute(p) ? p : resolve(baseDir, p);
+}
+
+function writeFile(path: string, content: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, content, 'utf8');
+}
+
+/** Write the configured markdown / html / json outputs; returns the paths written. */
+export function writeOutputs(report: TraceReport, output: TraceConfig['output'], baseDir: string): string[] {
+  const written: string[] = [];
+  if (!output) return written;
+  if (output.markdown) {
+    writeFile(abs(baseDir, output.markdown), renderMarkdown(report));
+    written.push(output.markdown);
+  }
+  if (output.html) {
+    writeFile(abs(baseDir, output.html), renderHtml(report));
+    written.push(output.html);
+  }
+  if (output.json) {
+    writeFile(abs(baseDir, output.json), `${JSON.stringify(report, null, 2)}\n`);
+    written.push(output.json);
+  }
+  return written;
+}
+
+/** The report as a nestable section (H1 demoted to H2) for embedding in another doc. */
+export function reportSection(report: TraceReport): string {
+  return renderMarkdown(report).replace(/^# /, '## ');
+}
+
+/** Fold the report into an existing markdown doc between `acp:trace` markers; returns the path. */
+export function updateRoadmapSection(
+  report: TraceReport,
+  roadmap: { path: string; sectionId: string },
+  baseDir: string,
+): string {
+  const path = abs(baseDir, roadmap.path);
+  let doc = '';
+  try {
+    doc = readFileSync(path, 'utf8');
+  } catch {
+    doc = '';
+  }
+  writeFile(path, updateSection(doc, roadmap.sectionId, reportSection(report)));
+  return roadmap.path;
+}
+
+/** Update an existing Confluence page in place with the rendered report. Returns the page URL. */
+export async function publishConfluenceReport(
+  report: TraceReport,
+  conf: { pageId: string; title?: string },
+): Promise<string> {
+  const creds = getConfluenceCreds();
+  const page = await getPage(conf.pageId, creds);
+  const version = (page.version?.number ?? 1) + 1;
+  const title = conf.title ?? page.title ?? 'Requirements Traceability';
+  const storage = markdownToStorage(renderMarkdown(report));
+  await updatePage(
+    conf.pageId,
+    { id: conf.pageId, type: 'page', title, version: { number: version }, body: { storage: { value: storage, representation: 'storage' } } },
+    creds,
+  );
+  return pageWebUrl(page, creds);
+}

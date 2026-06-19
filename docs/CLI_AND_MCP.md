@@ -79,6 +79,23 @@ acp push-folder ./out --dry-run    # show intended create/update actions, no cal
 
 (The flat forward command still works for epic + stories: `acp jira --epic ./out/epic.md --task ./out/task-*.md`.)
 
+### Requirements traceability (`acp trace`)
+
+Link tests to requirements and report which requirements hold true at the current git commit
+(full guide: [TRACEABILITY.md](TRACEABILITY.md)).
+
+```bash
+acp trace init --project "My Product" --jira-epic PROJ-100   # scaffold acp-trace.json
+acp trace --config acp-trace.json                            # write the markdown/HTML/JSON report
+acp trace --config acp-trace.json --fail-on drift            # CI gate (exit 1 on drift/failing)
+acp trace --config acp-trace.json --roadmap docs/roadmap.md  # also fold a section into an existing doc
+acp trace --config acp-trace.json --publish-confluence       # also update the configured Confluence page
+```
+
+Flags: `--config`, `--md/--html/--json` (override output paths), `--roadmap`/`--section`,
+`--publish-confluence`, `--fail-on none|drift|failing`. `acp trace init` flags: `--out`, `--project`,
+`--jira-epic`, `--markdown`, `--roadmap`, `--confluence-page`, `--force`.
+
 ## MCP server (for Claude / agents)
 
 The server exposes two tools that take **raw markdown strings** (what an agent has in memory):
@@ -90,6 +107,7 @@ The server exposes two tools that take **raw markdown strings** (what an agent h
 | `jira_to_markdown` | **Reverse.** Pull a Jira Epic (+ Stories + Sub-tasks) into a markdown folder. Args: `epic`, `dir`, `recursive?`, `force?` (direct REST, needs `JIRA_*` in `.env`) |
 | `confluence_to_markdown` | **Reverse.** Pull a Confluence page (+ descendant pages) into a markdown folder. Args: `page`, `dir`, `recursive?`, `force?` (direct REST, needs `CONFLUENCE_*` in `.env`) |
 | `push_folder` | **Reverse re-publish.** Push a pulled folder (+ `acp-pull.json`) back, recursively (incl. sub-tasks / child pages). Args: `dir`, `dryRun?` (direct REST) |
+| `requirements_trace` | **Traceability.** Build the RTM from an `acp-trace.json`: which requirements are verified / failing / unverified / specified + drift + orphan tests, at the current git commit. Args: `configPath?`, `format?` (`markdown`\|`json`). Returns the report + structured stats. |
 
 ### Register in Claude Code
 

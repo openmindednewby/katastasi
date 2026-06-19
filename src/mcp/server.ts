@@ -12,10 +12,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { dirname, resolve } from 'node:path';
 import { publishJira } from '../core/jira.js';
 import { publishConfluence } from '../core/confluence.js';
 import { pullJira, pullConfluence } from '../core/pull.js';
 import { pushFolder } from '../core/push.js';
+import { loadTraceConfig } from '../core/trace/config.js';
+import { runTrace, renderAll } from '../core/trace/index.js';
 
 const server = new McpServer({ name: 'ai-confluence-pipeline', version: '0.1.0' });
 
@@ -201,6 +204,38 @@ server.registerTool(
       return {
         content: [{ type: 'text' as const, text: [`Pushed ${rows.length} item(s) from ${result.dir}`, ...rows].join('\n') }],
         structuredContent: result as unknown as Record<string, unknown>,
+      };
+    } catch (err) {
+      return errorResult(err);
+    }
+  },
+);
+
+server.registerTool(
+  'requirements_trace',
+  {
+    title: 'Requirements traceability (tests ↔ requirements ↔ status)',
+    description:
+      'Build a Requirements Traceability Matrix from an acp-trace.json config: pull requirements ' +
+      '(Jira epic / roadmap HTML / Confluence page / markdown), scan the configured test sources for ' +
+      '`@KEY` tags + xUnit `[Trait]` + a mapping file, ingest JUnit/TRX results, and report — at the ' +
+      'current git commit — which requirements are verified / failing / unverified / specified, plus ' +
+      'drift (declared done but not verified) and orphan tests. Returns the markdown report + stats.',
+    inputSchema: {
+      configPath: z.string().optional().describe('Path to acp-trace.json (default: ./acp-trace.json).'),
+      format: z.enum(['markdown', 'json']).optional().describe('Return the markdown report (default) or raw JSON.'),
+    },
+  },
+  async (args) => {
+    try {
+      const configPath = resolve(args.configPath ?? 'acp-trace.json');
+      const config = loadTraceConfig(configPath);
+      const report = await runTrace(config, dirname(configPath));
+      const rendered = renderAll(report);
+      const text = args.format === 'json' ? rendered.json : rendered.markdown;
+      return {
+        content: [{ type: 'text' as const, text }],
+        structuredContent: report as unknown as Record<string, unknown>,
       };
     } catch (err) {
       return errorResult(err);
