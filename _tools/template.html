@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{TITLE}}</title>
+<style>
+  :root {
+    --amber-bg:#ffe8b3; --amber-bd:#e6a700;
+    --green-bg:#d7f5dd; --green-bd:#2e9e4f;
+    --ans-bg:#b7f0c2; --ans-bd:#15803d;
+    --red-bg:#f3d6d6; --red-bd:#c0392b;
+    --ink:#1f2933; --muted:#6b7280; --line:#e5e7eb; --card:#ffffff; --bg:#f7f8fa;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:var(--ink); background:var(--bg); }
+  header { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--line); padding:12px 18px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; flex:1 1 auto; }
+  .progress { font-size:13px; color:var(--muted); white-space:nowrap; }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; }
+  button { font:inherit; font-size:13px; padding:6px 11px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; }
+  button:hover { background:#f0f1f3; }
+  button.primary { background:#1f6feb; color:#fff; border-color:#1f6feb; }
+  .legend { font-size:12px; color:var(--muted); display:flex; gap:14px; align-items:center; }
+  .swatch { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-1px; margin-right:5px; }
+  main { display:grid; grid-template-columns: var(--split, 58%) 9px 1fr; gap:0; align-items:start; }
+  #gutter { position:sticky; top:57px; height:calc(100vh - 57px); cursor:col-resize; background:var(--line); }
+  #gutter::after { content:"⋮"; display:block; text-align:center; color:#9aa1aa; margin-top:calc(50vh - 70px); font-size:14px; }
+  #gutter:hover, #gutter.dragging { background:#c6ccd4; }
+  @media (max-width: 1000px){ main { grid-template-columns:1fr; } #gutter { display:none; } }
+  #diagramPane { position:sticky; top:57px; max-height:calc(100vh - 57px); overflow:auto; padding:16px; background:#fff; }
+  @media (max-width: 1000px){ #diagramPane { position:static; max-height:none; border-bottom:1px solid var(--line);} }
+  #diagram svg { max-width:100%; height:auto; }
+  #questions { padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:12px; }
+  .card.answered { border-color:var(--ans-bd); box-shadow: inset 3px 0 0 var(--ans-bd); }
+  .card h3 { margin:0 0 8px; font-size:14px; }
+  .card .qid { color:var(--ans-bd); font-weight:700; }
+  .opts { display:flex; flex-direction:column; gap:6px; margin:6px 0; }
+  .opts label { font-size:13px; display:flex; gap:8px; align-items:flex-start; cursor:pointer; }
+  textarea { width:100%; min-height:46px; font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; resize:vertical; margin-top:4px; }
+  .clear { font-size:12px; color:var(--muted); background:none; border:none; padding:2px 0; cursor:pointer; text-decoration:underline; }
+  .note { font-size:12px; color:var(--muted); margin:4px 0 14px; }
+  .general { margin-top:6px; }
+  .general h3 { font-size:14px; margin:0 0 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="legend">
+    <span><span class="swatch" style="background:var(--amber-bg);border:1px solid var(--amber-bd)"></span>pending</span>
+    <span><span class="swatch" style="background:var(--ans-bg);border:1px solid var(--ans-bd)"></span>answered</span>
+    <span><span class="swatch" style="background:var(--red-bg);border:1px solid var(--red-bd)"></span>disabled</span>
+    <span><span class="swatch" style="background:var(--green-bg);border:1px solid var(--green-bd)"></span>confirmed</span>
+  </span>
+  <span class="progress" id="progress"></span>
+  <span class="btns">
+    <button onclick="exportPNG()">Export PNG</button>
+    <button onclick="exportMarkdown()">Export .md</button>
+    <button onclick="exportJSON()">Export .json</button>
+    <button class="primary" onclick="copyAnswers()">Copy answers</button>
+  </span>
+</header>
+<main>
+  <div id="diagramPane"><div id="diagram">Loading diagram…</div></div>
+  <div id="gutter" title="Drag to resize · double-click to reset"></div>
+  <div id="questions"></div>
+</main>
+
+<script src="{{MERMAID_SRC}}"></script>
+<script>
+const D = window.__DATA__ || { title:"(no data)", mermaid:"flowchart TD\n A[no data]", questions:[], edges:[] };
+document.title = D.title;
+document.getElementById("title").textContent = D.title;
+
+mermaid.initialize({ startOnLoad:false, securityLevel:"loose", theme:"base", flowchart:{ htmlLabels:false } });
+
+// ---- parse the static class assignments out of the source diagram ----
+function pickClass(kind){
+  const re = new RegExp("\\n\\s*class\\s+([^\\n;]+?)\\s+" + kind + "\\s*;");
+  const mm = D.mermaid.match(re);
+  return mm ? mm[1].split(",").map(s => s.trim()).filter(Boolean) : [];
+}
+const confirmedBase = pickClass("confirmed");
+const pendingBase   = pickClass("pending");
+const body = D.mermaid
+  .replace(/\n\s*class\s+[^\n;]+?\s+confirmed\s*;/g, "")
+  .replace(/\n\s*class\s+[^\n;]+?\s+pending\s*;/g, "");
+
+// ---- graph + answer state ----
+const QN = {}; D.questions.forEach(q => { QN[q.n] = q; });
+const Q_BY_NODE = {}; D.questions.forEach(q => { if (q.node) Q_BY_NODE[q.node] = q; });
+const EDGES = D.edges || [];
+const ALL_NODES = (function(){ const s = new Set(); EDGES.forEach(e => { s.add(e[0]); s.add(e[1]); }); return s; })();
+
+const answers = {};            // n -> { idx, label, target, comment }
+D.questions.forEach(q => { answers[q.n] = { idx:null, label:"", target:null, comment:"" }; });
+let generalNote = "";
+
+function gated(node){ const q = Q_BY_NODE[node]; return !!(q && q.targets && q.targets.length); }
+function chosenTarget(node){
+  const q = Q_BY_NODE[node]; if (!gated(node)) return undefined;
+  const a = answers[q.n]; if (!a || a.idx === null) return undefined;
+  return a.target;
+}
+
+// A node is live if it is a seed (never a target) or has an active incoming edge.
+// Edges out of an *answered* decision node are active only for the chosen branch;
+// so picking a branch makes the rejected branches' downstream nodes go dead -> shown disabled (red).
+function computeLive(){
+  const tgts = new Set(EDGES.map(e => e[1]));
+  const live = new Set();
+  ALL_NODES.forEach(n => { if (!tgts.has(n)) live.add(n); });
+  let changed = true, guard = 0;
+  while (changed && guard++ < 2000){
+    changed = false;
+    for (const e of EDGES){
+      const src = e[0], tgt = e[1];
+      if (!live.has(src) || live.has(tgt)) continue;
+      let active = true;
+      if (gated(src)){ const ct = chosenTarget(src); if (ct !== undefined) active = (tgt === ct); }
+      if (active){ live.add(tgt); changed = true; }
+    }
+  }
+  return live;
+}
+
+function buildDiagram(){
+  const live = computeLive();
+  const disabled = new Set(); ALL_NODES.forEach(n => { if (!live.has(n)) disabled.add(n); });
+
+  const ans = new Set();
+  D.questions.forEach(q => {
+    if (q.node && answers[q.n].idx !== null && !disabled.has(q.node)){
+      ans.add(q.node);
+      const t = answers[q.n].target;
+      if (t && !disabled.has(t)) ans.add(t);
+    }
+  });
+  const green = confirmedBase.filter(n => !disabled.has(n) && !ans.has(n));
+  const amber = pendingBase.filter(n => !disabled.has(n) && !ans.has(n));
+
+  let d = body.trimEnd();
+  d += "\n  classDef answered fill:#b7f0c2,stroke:#15803d,stroke-width:2px,color:#0f3d20;";
+  d += "\n  classDef disabled fill:#f3d6d6,stroke:#c0392b,color:#7d1f1f,stroke-dasharray:4 3;";
+  if (green.length)  d += "\n  class " + green.join(",") + " confirmed;";
+  if (amber.length)  d += "\n  class " + amber.join(",") + " pending;";
+  if (ans.size)      d += "\n  class " + Array.from(ans).join(",") + " answered;";
+  if (disabled.size) d += "\n  class " + Array.from(disabled).join(",") + " disabled;";
+  return d;
+}
+
+let seq = 0;
+async function renderDiagram(){
+  const def = buildDiagram();
+  try {
+    const { svg } = await mermaid.render("mmd" + (++seq), def);
+    document.getElementById("diagram").innerHTML = svg;
+  } catch (e) {
+    document.getElementById("diagram").innerHTML = "<pre style='color:#b00'>Render error: " + (e && e.message) + "</pre>";
+  }
+}
+
+function updateProgress(){
+  const total = D.questions.length;
+  const done = D.questions.filter(q => answers[q.n].idx !== null).length;
+  document.getElementById("progress").textContent = done + " / " + total + " answered";
+}
+
+function setAnswer(n, idx){
+  const q = QN[n];
+  answers[n].idx = idx;
+  answers[n].label = (idx === null) ? "" : q.options[idx];
+  answers[n].target = (idx === null || !q.targets) ? null : (q.targets[idx] || null);
+  document.getElementById("card-" + n).classList.toggle("answered", idx !== null);
+  renderDiagram(); updateProgress();
+}
+function clearAnswer(n){
+  document.querySelectorAll("input[name='q" + n + "']").forEach(r => r.checked = false);
+  setAnswer(n, null);
+}
+function setComment(n, txt){ answers[n].comment = txt; }
+
+function buildControls(){
+  const root = document.getElementById("questions");
+  D.questions.forEach(q => {
+    const card = document.createElement("div");
+    card.className = "card"; card.id = "card-" + q.n;
+    const nodeTag = q.node ? "" : " <span title='no diagram node mapped' style='color:#b00'>(unmapped)</span>";
+    let html = "<h3><span class='qid'>Q" + q.n + "</span> — " + escapeHtml(q.title) + nodeTag + "</h3><div class='opts'>";
+    q.options.forEach((opt, i) => {
+      const id = "q" + q.n + "_" + i;
+      html += "<label><input type='radio' name='q" + q.n + "' value='" + i + "' id='" + id + "'> " + escapeHtml(opt) + "</label>";
+    });
+    html += "</div><button class='clear' onclick='clearAnswer(" + q.n + ")'>clear</button>";
+    html += "<textarea placeholder='Comment (exported)…' oninput='setComment(" + q.n + ", this.value)'></textarea>";
+    card.innerHTML = html;
+    root.appendChild(card);
+    card.querySelectorAll("input[type=radio]").forEach(r => {
+      r.addEventListener("change", () => setAnswer(q.n, parseInt(r.value, 10)));
+    });
+  });
+  const gen = document.createElement("div");
+  gen.className = "general";
+  gen.innerHTML = "<h3>General notes</h3><textarea placeholder='Overall notes (exported)…' oninput='generalNote=this.value'></textarea>";
+  root.appendChild(gen);
+}
+
+// ---- export ----
+function answerRows(){
+  return D.questions.map(q => ({
+    n: q.n, title: q.title, node: q.node || null,
+    answer: answers[q.n].label || "", comment: answers[q.n].comment || ""
+  }));
+}
+function buildMarkdown(){
+  let out = "# " + D.title + " — Answers\n\n";
+  answerRows().forEach(r => {
+    out += "- **Q" + r.n + " — " + r.title + "**: " + (r.answer || "_(unanswered)_") + "\n";
+    if (r.comment) out += "  - Comment: " + r.comment + "\n";
+  });
+  if (generalNote.trim()) out += "\n**General notes:** " + generalNote.trim() + "\n";
+  return out;
+}
+function buildJSON(){
+  return JSON.stringify({ title: D.title, exportedAt: new Date().toISOString(),
+    answers: answerRows(), generalNote: generalNote }, null, 2);
+}
+function download(name, payload, type){
+  const blob = (payload instanceof Blob) ? payload : new Blob([payload], { type: type || "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function exportPNG(){
+  const svg = document.querySelector("#diagram svg");
+  if (!svg){ flash("No diagram to export"); return; }
+  const clone = svg.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const vb = svg.viewBox && svg.viewBox.baseVal;
+  const w = (vb && vb.width)  || svg.getBoundingClientRect().width  || 1200;
+  const h = (vb && vb.height) || svg.getBoundingClientRect().height || 800;
+  clone.setAttribute("width", w); clone.setAttribute("height", h);
+  const xml = new XMLSerializer().serializeToString(clone);
+  const src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+  const scale = 2;
+  const img = new Image();
+  img.onload = function(){
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(w * scale); canvas.height = Math.ceil(h * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale); ctx.drawImage(img, 0, 0);
+    canvas.toBlob(b => { if (b) download(slug() + "-diagram.png", b); else flash("PNG export failed"); }, "image/png");
+  };
+  img.onerror = function(){ flash("PNG export failed"); };
+  img.src = src;
+}
+function exportMarkdown(){ download(slug() + "-answers.md", buildMarkdown(), "text/markdown"); }
+function exportJSON(){ download(slug() + "-answers.json", buildJSON(), "application/json"); }
+function copyAnswers(){
+  navigator.clipboard.writeText(buildMarkdown()).then(
+    () => flash("Copied answers to clipboard"),
+    () => flash("Copy failed — select & copy manually"));
+}
+function slug(){ return (D.title || "questions").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40); }
+function flash(msg){ const p = document.getElementById("progress"); const old = p.textContent; p.textContent = msg; setTimeout(() => updateProgress(), 1500); }
+
+function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function escapeAttr(s){ return escapeHtml(s).replace(/'/g,"&#39;").replace(/"/g,"&quot;"); }
+
+// ---- draggable splitter (enlarge the diagram on demand) ----
+(function initSplitter(){
+  const main = document.querySelector("main");
+  const gutter = document.getElementById("gutter");
+  if (!main || !gutter) return;
+  let dragging = false;
+  function move(e){
+    if (!dragging) return;
+    const rect = main.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    let pct = Math.max(25, Math.min(82, (cx / rect.width) * 100));
+    main.style.setProperty("--split", pct.toFixed(1) + "%");
+  }
+  function stop(){ dragging = false; gutter.classList.remove("dragging"); document.body.style.userSelect = ""; }
+  gutter.addEventListener("mousedown", e => { dragging = true; gutter.classList.add("dragging"); document.body.style.userSelect = "none"; e.preventDefault(); });
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", stop);
+  gutter.addEventListener("touchstart", () => { dragging = true; gutter.classList.add("dragging"); }, { passive:true });
+  window.addEventListener("touchmove", move, { passive:true });
+  window.addEventListener("touchend", stop);
+  gutter.addEventListener("dblclick", () => main.style.setProperty("--split", "58%"));
+})();
+
+buildControls();
+updateProgress();
+renderDiagram();
+</script>
+</body>
+</html>
