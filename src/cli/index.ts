@@ -18,6 +18,7 @@ import { autodetect, REQUIREMENTS_STUB } from '../core/trace/autodetect.js';
 import { runTrace } from '../core/trace/index.js';
 import { serve } from '../core/trace/serve.js';
 import { writeOutputs, updateRoadmapSection, publishConfluenceReport, stampJiraLabels } from '../core/trace/publish.js';
+import { shouldNotify, sendNotification } from '../core/trace/notify.js';
 import type { TraceReport } from '../core/trace/types.js';
 import type {
   JiraPublishResult,
@@ -193,6 +194,8 @@ const traceCmd = program
   .option('--section <id>', 'section id used with --roadmap', 'rtm')
   .option('--publish-confluence', 'update the Confluence page from config.publish.confluence', false)
   .option('--stamp-jira', 'stamp config.publish.jira.verifiedLabel onto verified Jira issues', false)
+  .option('--notify <url>', 'POST a summary to this webhook (Slack/Teams/generic); else config.notify.webhook')
+  .option('--notify-on <level>', 'when to notify: regression | failing | stale | always')
   .option('--run', 'execute each test group\'s command before tracing (re-run the suites)', false)
   .option('--no-save', 'do not persist this run to the history dir')
   .option('--no-compare', 'do not diff against the previous run / baseline')
@@ -230,6 +233,13 @@ const traceCmd = program
       if (opts.stampJira && config.publish?.jira?.verifiedLabel) {
         const { added, removed } = await stampJiraLabels(report, config.publish.jira);
         process.stdout.write(`  Stamped Jira "${config.publish.jira.verifiedLabel}": +${added} / -${removed}\n`);
+      }
+
+      const notifyUrl = opts.notify ?? config.notify?.webhook;
+      const notifyOn = opts.notifyOn ?? config.notify?.on ?? 'regression';
+      if (notifyUrl && shouldNotify(report, notifyOn)) {
+        const ok = await sendNotification(notifyUrl, report);
+        process.stdout.write(`  Notified webhook (on ${notifyOn}): ${ok ? 'sent' : 'failed'}\n`);
       }
 
       process.exit(exitCode(report, opts.failOn));

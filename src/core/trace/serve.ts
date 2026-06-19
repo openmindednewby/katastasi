@@ -17,6 +17,7 @@ import { loadTraceConfig } from './config.js';
 import { listRuns, loadPreviousRun } from './history.js';
 import { runTrace } from './index.js';
 import { publishConfluenceReport, stampJiraLabels, updateRoadmapSection, writeOutputs } from './publish.js';
+import { shouldNotify, sendNotification } from './notify.js';
 import { renderHtml } from './report/html.js';
 import type { TraceReport } from './types.js';
 
@@ -200,6 +201,9 @@ function applySinks(report: TraceReport, config: TraceConfig, baseDir: string, p
   }
   if (stamp && config.publish?.jira?.verifiedLabel) {
     void stampJiraLabels(report, config.publish.jira).catch(() => undefined);
+  }
+  if (config.notify?.webhook && shouldNotify(report, config.notify.on)) {
+    void sendNotification(config.notify.webhook, report).catch(() => undefined);
   }
 }
 

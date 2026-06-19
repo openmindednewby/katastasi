@@ -119,7 +119,8 @@ Without results a referenced requirement is **🧪 unverified**; with a passing 
     "roadmap": { "path": "docs/roadmap.md", "sectionId": "rtm" },
     "confluence": { "pageId": "67890", "title": "Requirements Verification" },
     "jira": { "verifiedLabel": "verified" }
-  }
+  },
+  "notify": { "webhook": "https://hooks.slack.com/services/…", "on": "regression" }
 }
 ```
 
@@ -213,6 +214,27 @@ Same engine, four front doors — all honour the same config:
 Each run can also refresh where humans/agents look: it writes `output.*`, folds the roadmap section,
 and (with `?publish=1` / `--publish-confluence`) updates the Confluence page — so Jira/Confluence/local
 md all stay current automatically.
+
+## Notifications
+
+Push a message to a webhook (Slack / Teams / any JSON endpoint) so a regression reaches a human:
+
+```bash
+acp trace --run --notify https://hooks.slack.com/services/… --notify-on regression
+```
+
+Or set it in config (`notify.webhook` + `on`: `regression` | `failing` | `stale` | `always`) — then the
+CLI, the portal (`POST /run`), and the scheduled workflow all notify automatically. The payload carries
+`text` (what Slack/Teams render, e.g. `RTM @ a1b2c3: ⛔ 1 regression … PROJ-2 verified→failing`) plus
+the structured `stats` + `regressions` for generic consumers.
+
+## CI integration (GitHub Actions)
+
+A ready-to-copy workflow lives at [`docs/ci/rtm-github-action.yml`](ci/rtm-github-action.yml). On every
+PR it runs the suites, builds the RTM, **fails the check on a regression**, **comments the report on
+the PR** (sticky — updated in place), and uploads the HTML dashboard as an artifact. Copy it to
+`.github/workflows/rtm.yml`, ensure `acp-trace.json` exists (`acp trace init`), and point the "Get acp"
+step at however you install the CLI.
 
 ## CI gate
 

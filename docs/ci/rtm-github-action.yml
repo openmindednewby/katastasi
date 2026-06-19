@@ -1,0 +1,66 @@
+# Requirements Traceability on every PR.
+# Copy this to .github/workflows/rtm.yml in YOUR repo. It runs the suites, builds the RTM, fails the
+# PR on a regression, comments the report, and uploads the HTML dashboard as an artifact.
+#
+# Assumes `acp-trace.json` at the repo root (run `acp trace init` once to create it) and that `acp`
+# is available. Two ways to get `acp` — pick one in the "Get acp" step below:
+#   A) it's published to your registry → `npm i -g ai-confluence-pipeline`
+#   B) vendored / building from source → adjust the path to dist/cli/index.js
+name: RTM
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write   # to comment on the PR
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0           # full history so the git commit + stale checks are accurate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ── Get acp (choose A or B) ───────────────────────────────────────────
+      - name: Get acp
+        run: npm i -g ai-confluence-pipeline   # (A) from your registry
+        # (B) from source:  npm ci && npm run build  → then call: node dist/cli/index.js
+
+      # ── Your test suites must produce the result files acp-trace.json points at ──
+      # `--run` executes each suite's configured `command`; or run your tests here yourself.
+      - name: Trace requirements
+        id: trace
+        run: |
+          acp trace --config acp-trace.json --run \
+            --md rtm.md --html rtm.html --fail-on regression
+        continue-on-error: true     # let the comment post even when the gate fails
+
+      - name: Comment the RTM on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = '### Requirements Traceability\n\n' + fs.readFileSync('rtm.md', 'utf8');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const mine = comments.find(c => c.user.type === 'Bot' && c.body.startsWith('### Requirements Traceability'));
+            if (mine) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body });
+            else await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+
+      - name: Upload HTML dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtm-dashboard
+          path: rtm.html
+
+      - name: Fail if the trace gate failed
+        if: steps.trace.outcome == 'failure'
+        run: echo "RTM gate failed (regression)" && exit 1
