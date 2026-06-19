@@ -9,6 +9,7 @@ import type { RequirementSource, TraceConfig, TraceScope } from './config.js';
 import { computeReport } from './computeState.js';
 import { getGitContext } from './gitContext.js';
 import { fetchConfluenceRequirements } from './requirements/confluencePage.js';
+import { fetchGithubRequirements, fetchGitlabRequirements } from './requirements/issues.js';
 import { fetchJiraRequirements } from './requirements/jiraEpic.js';
 import { parseMarkdownRequirements } from './requirements/markdown.js';
 import { parseRoadmapHtml } from './requirements/roadmapHtml.js';
@@ -48,6 +49,10 @@ async function loadRequirements(
       return parseMarkdownRequirements(readFileSync(rel(baseDir, source.path), 'utf8'), keyPattern, 'markdown', scope);
     case 'roadmap-html':
       return parseRoadmapHtml(readFileSync(rel(baseDir, source.path), 'utf8'), keyPattern, scope);
+    case 'github-issues':
+      return fetchGithubRequirements(source, scope);
+    case 'gitlab-issues':
+      return fetchGitlabRequirements(source, scope);
     default:
       return [];
   }

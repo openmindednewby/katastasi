@@ -23,7 +23,13 @@ export const REQUIREMENT_STATES: readonly RequirementState[] = [
 ];
 
 /** Where a requirement came from — drives how its key + declared status were extracted. */
-export type RequirementSourceKind = 'jira-epic' | 'roadmap-html' | 'confluence-page' | 'markdown';
+export type RequirementSourceKind =
+  | 'jira-epic'
+  | 'roadmap-html'
+  | 'confluence-page'
+  | 'markdown'
+  | 'github-issues'
+  | 'gitlab-issues';
 
 /** A single requirement to verify (one row of the matrix). */
 export interface Requirement {

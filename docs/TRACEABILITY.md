@@ -135,6 +135,8 @@ source(s). Requirements from all scopes are merged by key. Use `name` to label w
 | `roadmap-html` | a local HTML file | best with `data-req="KEY" data-title="…" data-status="…" data-complete="true"` attributes; falls back to parsing visible text |
 | `confluence-page` | `CONFLUENCE_*` creds | page body is converted to markdown and parsed (write the spec as a table or checklist) |
 | `markdown` | a local file | a table (`\| KEY \| Title \| Status \|`) or a checklist (`- [x] KEY Title`) |
+| `github-issues` | `repo` (+ `GITHUB_TOKEN` if private/rate-limited) | issues → requirements keyed `GH-<n>` (configurable `keyPrefix`); open/closed → declared status; filter by `label`/`milestone`; PRs skipped. Tag tests `@GH-123`. |
+| `gitlab-issues` | `project` (+ `GITLAB_TOKEN` if private) | issues → requirements keyed `GL-<iid>`; `opened`/`closed`; filter by `label`. Tag tests `@GL-7`. |
 
 ## Outputs & publishing
 
