@@ -137,6 +137,12 @@ The server exposes two tools that take **raw markdown strings** (what an agent h
 | `confluence_to_markdown` | **Reverse.** Pull a Confluence page (+ descendant pages) into a markdown folder. Args: `page`, `dir`, `recursive?`, `force?` (direct REST, needs `CONFLUENCE_*` in `.env`) |
 | `push_folder` | **Reverse re-publish.** Push a pulled folder (+ `acp-pull.json`) back, recursively (incl. sub-tasks / child pages). Args: `dir`, `dryRun?` (direct REST) |
 | `questions_to_html` | **Decisions.** Generate the interactive decision HTML from an open-questions markdown. Args: `input`, `out?`, `cdn?`. Returns where it wrote + question/edge counts + any unmapped Q's. |
+| `scaffold_test` | **Agent loop.** Write a framework-correct, key-tagged test stub for a requirement. Args: `key`, `configPath?`, `tech?`, `title?`. Pull ticket → scaffold → implement → trace. |
+| `requirement_status` | **Agent loop.** One requirement's current state (verified/failing/…+drift/stale/tests). Args: `key`, `configPath?`. The quick "is KEY done?" check. |
+
+**Driving acp from Claude/Copilot:** register the MCP server and use the paste-ready flow prompts in
+**[AGENT_PROMPT.md](AGENT_PROMPT.md)** (implement-a-ticket-with-verification; requirements → use cases
+as a mermaid flow → unit + e2e tests → trace).
 | `requirements_trace` | **Traceability.** Build the RTM from an `acp-trace.json`: which requirements are verified / failing / unverified / specified + drift + orphan tests + regressions vs the last run, at the current git commit. Args: `configPath?`, `format?` (`markdown`\|`json`), `run?` (re-run the suites first). Returns the report + structured stats. |
 
 ### Register in Claude Code
