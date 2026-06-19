@@ -91,6 +91,20 @@ acp questions oq.md --out d.html --cdn   # CDN mermaid (smaller); --link referen
 
 Answer in a browser → Export .md (decisions + diagram) → `acp confluence --page answers.md`.
 
+### Business requirements → development-ready (`acp analyze`)
+
+The full pipeline (guide: [TECH_ANALYSIS_FLOW.md](TECH_ANALYSIS_FLOW.md)):
+
+```bash
+acp trace pull-requirements      # gather a MIX of sources → requirements/ folder + manifest
+acp trace gaps                   # deterministic code-side gap (tag code with @KEY, add scope.code)
+acp analyze                      # AI: gap analysis + technical-analysis (Confluence) + Jira tasks + tagged tests
+acp analyze --publish-confluence --publish-jira   # …and push them to Confluence + Jira
+```
+
+`acp analyze` uses the configured AI provider (`AI_PROVIDER`/`AI_BASE_URL`/`AI_MODEL` + an API key);
+the rest is deterministic. `acp trace scaffold-test <KEY>` / `status <KEY>` complete the agent loop.
+
 ### Requirements traceability (`acp trace`)
 
 Link tests to requirements and report which requirements hold true at the current git commit
@@ -139,6 +153,8 @@ The server exposes two tools that take **raw markdown strings** (what an agent h
 | `questions_to_html` | **Decisions.** Generate the interactive decision HTML from an open-questions markdown. Args: `input`, `out?`, `cdn?`. Returns where it wrote + question/edge counts + any unmapped Q's. |
 | `scaffold_test` | **Agent loop.** Write a framework-correct, key-tagged test stub for a requirement. Args: `key`, `configPath?`, `tech?`, `title?`. Pull ticket → scaffold → implement → trace. |
 | `requirement_status` | **Agent loop.** One requirement's current state (verified/failing/…+drift/stale/tests). Args: `key`, `configPath?`. The quick "is KEY done?" check. |
+| `pull_requirements` | **BA pipeline.** Gather requirements from all configured sources into one local folder + manifest. Args: `configPath?`, `dir?`, `force?`. |
+| `analyze` | **BA pipeline.** AI gap analysis → technical-analysis page + Jira tasks + scaffolded tagged tests (local; publish with `markdown_to_*`). Args: `configPath?`, `out?`, `scaffold?`. |
 
 **Driving acp from Claude/Copilot:** register the MCP server and use the paste-ready flow prompts in
 **[AGENT_PROMPT.md](AGENT_PROMPT.md)** (implement-a-ticket-with-verification; requirements → use cases

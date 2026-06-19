@@ -126,4 +126,5 @@ For an agent to deploy autonomously, use the paste-ready prompts in
 | Deploy on Docker | [docs/DEPLOY.md](docs/DEPLOY.md) |
 | Understand traceability | [docs/TRACEABILITY.md](docs/TRACEABILITY.md) |
 | Onboard a team to traceability | [docs/ONBOARDING.md](docs/ONBOARDING.md) (`acp trace init --all`) |
+| Requirements → tech analysis → tasks + tests | [docs/TECH_ANALYSIS_FLOW.md](docs/TECH_ANALYSIS_FLOW.md) (`acp trace pull-requirements` → `acp analyze`) |
 | Have an agent deploy it | [docs/DEPLOY_PROMPT.md](docs/DEPLOY_PROMPT.md) |

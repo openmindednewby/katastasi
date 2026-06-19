@@ -452,6 +452,7 @@ Full backlog in [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md). At a glance:
 - **Docker & deploy** — small Node image (`acp` + `acp-mcp`); `./scripts/getting-started.sh` deploys to local Docker Desktop or a remote host over SSH. [Deploy](docs/DEPLOY.md)
 - **Interactive decisions** — `acp questions <md>` → a self-contained interactive decision HTML; answers export ready for `acp confluence`. [Decisions](docs/QUESTIONS.md)
 - **Requirements traceability + regression pipeline** — `acp trace`: links tests ↔ requirements ↔ status at each git commit; run history + regression/stale detection; a secured web portal (`acp trace serve`) with **▶ run** buttons (per requirement / per suite) and live output; autodetect onboarding; notifications + a PR GitHub Action; always-on local + git-backed team dashboards. **[Traceability](docs/TRACEABILITY.md)** · **[5-minute onboarding](docs/ONBOARDING.md)**
+- **Business requirements → development-ready** — gather requirements from a mix of sources (`acp trace pull-requirements`), find code-side gaps (`acp trace gaps`), capture decisions via interactive forms (`acp questions`), then **`acp analyze`** (AI) produces a gap analysis + a Confluence-ready technical-analysis page + Jira tasks + scaffolded tagged unit/e2e test stubs — local and/or published. **[Tech-analysis flow](docs/TECH_ANALYSIS_FLOW.md)**
 - **Browser UI workbench** + 13 prompt templates + team profiles (the original AI-publishing flow).
 
 ### 🌐 Company-agnostic (works without Jira)
@@ -465,7 +466,7 @@ Full backlog in [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md). At a glance:
 - **In-browser dashboard QA** — `node scripts/preview-rtm.mjs`, open `preview/rtm-portal-sample.html`.
 
 ### 🧭 Optional / future — older AI-publishing ideas, not required
-Direct-REST forward backend (`ACP_BACKEND=direct`) · `acp analyze` (AI generation in the CLI) · n8n template routing · Confluence page templates · Jira structure presets · smart template selection.
+Direct-REST forward backend (`ACP_BACKEND=direct`) · n8n template routing · Confluence page templates · Jira structure presets · smart template selection.
 
 ## Contributing
 
