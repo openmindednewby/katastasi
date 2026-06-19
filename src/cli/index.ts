@@ -6,7 +6,7 @@
  * The agent-facing equivalent is the MCP server (src/mcp/server.ts), which takes raw markdown.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
 import { Command } from 'commander';
 import { publishJira } from '../core/jira.js';
 import { publishConfluence } from '../core/confluence.js';
@@ -19,6 +19,7 @@ import { scaffoldOrg } from '../core/trace/scaffold.js';
 import { scaffoldTest } from '../core/trace/scaffoldTest.js';
 import { runTrace, requirementStatus, gatherRequirements } from '../core/trace/index.js';
 import { writeRequirementsFolder } from '../core/trace/requirements/folder.js';
+import { analyze } from '../core/analyze/analyze.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -183,6 +184,42 @@ program
       process.stdout.write(`\n  Markdown folder -> Atlassian\n  Dir: ${dir}${opts.dryRun ? '  [DRY RUN]' : ''}\n`);
       const result = await pushFolder(dir, { dryRun: opts.dryRun });
       printPushResult(result);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+program
+  .command('analyze')
+  .description('AI: requirements + codebase → gap analysis + technical-analysis (Confluence) + Jira tasks + scaffolded tests.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--out <dir>', 'output folder', 'tech-analysis')
+  .option('--no-scaffold', 'do not scaffold the per-task test stubs')
+  .option('--publish-confluence', 'also publish technical-analysis.md to Confluence', false)
+  .option('--publish-jira', 'also publish the tasks (epic + stories) to Jira', false)
+  .action(async (opts) => {
+    try {
+      const configPath = resolve(opts.config);
+      const baseDir = dirname(configPath);
+      const config = loadTraceConfig(configPath);
+      process.stdout.write('\n  Analysing requirements vs codebase (AI)…\n');
+      const r = await analyze(config, baseDir, { outDir: opts.out, scaffold: opts.scaffold });
+      process.stdout.write(`  Wrote ${r.files.length} file(s) → ${opts.out}/  ·  ${r.tasks.length} task(s)  ·  ${r.scaffolded.length} test stub(s)\n`);
+      r.files.forEach((f) => process.stdout.write(`    + ${f}\n`));
+      r.scaffolded.forEach((f) => process.stdout.write(`    + ${f} (test stub)\n`));
+
+      if (opts.publishConfluence) {
+        const res = await publishConfluence({ pageMarkdown: read(join(baseDir, opts.out, 'technical-analysis.md')) });
+        process.stdout.write(`  Confluence: ${res.page?.url ?? 'published'}\n`);
+      }
+      if (opts.publishJira) {
+        const epicMarkdown = read(join(baseDir, opts.out, 'tasks', 'epic.md'));
+        const taskMarkdowns = r.tasks.map((t) => read(join(baseDir, opts.out, 'tasks', `${t.key}.md`)));
+        printJiraResult(await publishJira({ epicMarkdown, taskMarkdowns }));
+      }
+      if (!opts.publishConfluence && !opts.publishJira) {
+        process.stdout.write(`  Publish:  acp confluence --page ${opts.out}/technical-analysis.md  ·  acp jira --epic ${opts.out}/tasks/epic.md --task ${opts.out}/tasks/*.md\n`);
+      }
     } catch (err) {
       fail(err);
     }
