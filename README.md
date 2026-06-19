@@ -456,7 +456,7 @@ Full backlog in [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md). At a glance:
 
 ### 🌐 Company-agnostic (works without Jira) — in progress
 - [x] **Store results anywhere** — local files (`runs/`, `RTM.*`) **or** POST the full report to your own server (`output.post` / `--post`); Jira/Confluence are optional sinks.
-- [ ] Requirements from GitHub/GitLab issues (not just Jira/markdown)
+- [x] **Requirements from GitHub/GitLab issues** — `github-issues` / `gitlab-issues` sources (by label/milestone; open/closed → status; keyed `GH-<n>`/`GL-<iid>`), so non-Jira teams trace against their issue tracker.
 - [ ] Pluggable sources/sinks + `init --profile <stack>` starter configs
 - [ ] Self-hosted collector server that aggregates every dev/CI run
 

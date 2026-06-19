@@ -19,6 +19,23 @@ const requirementSourceSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('roadmap-html'), path: z.string() }),
   z.object({ type: z.literal('confluence-page'), pageId: z.string() }),
   z.object({ type: z.literal('markdown'), path: z.string() }),
+  z.object({
+    type: z.literal('github-issues'),
+    repo: z.string(), // owner/name
+    label: z.string().optional(),
+    milestone: z.string().optional(),
+    keyPrefix: z.string().optional(),
+    baseUrl: z.string().optional(),
+    token: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal('gitlab-issues'),
+    project: z.string(), // group/name or numeric id
+    label: z.string().optional(),
+    keyPrefix: z.string().optional(),
+    baseUrl: z.string().optional(),
+    token: z.string().optional(),
+  }),
 ]);
 
 const testSourceSchema = z.object({
