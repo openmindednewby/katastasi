@@ -66,6 +66,7 @@ function computeStats(rows: TracedRequirement[], orphanCount: number): TraceStat
     specified: count('specified'),
     drift: rows.filter((r) => r.drift).length,
     orphanTests: orphanCount,
+    stale: 0, // set by markStale (needs file mtimes) in the orchestrator
     regressions: 0, // set by the history diff when a prior run exists
     coveragePct: total ? Math.round((verified / total) * 100) : 0,
   };
@@ -91,7 +92,7 @@ export function computeReport(input: ComputeInput): TraceReport {
     const tests = refsByKey.get(key) ?? [];
     const result = ingested.byKey.get(key) ?? blankResult();
     const state = deriveState(tests, result);
-    return { ...req, key, tests, result, state, drift: req.declaredComplete && state !== 'verified' };
+    return { ...req, key, tests, result, state, drift: req.declaredComplete && state !== 'verified', stale: false };
   });
 
   const orphanTests = findOrphans(reqKeys, refs, ingested);

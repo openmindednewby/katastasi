@@ -196,7 +196,7 @@ const traceCmd = program
   .option('--run', 'execute each test group\'s command before tracing (re-run the suites)', false)
   .option('--no-save', 'do not persist this run to the history dir')
   .option('--no-compare', 'do not diff against the previous run / baseline')
-  .option('--fail-on <level>', 'exit non-zero on: none | regression | drift | failing', 'none')
+  .option('--fail-on <level>', 'exit non-zero on: none | regression | stale | drift | failing', 'none')
   .action(async (opts) => {
     try {
       const configPath = resolve(opts.config);
@@ -326,7 +326,7 @@ function printTraceSummary(report: TraceReport, written: string[]): void {
   process.stdout.write(
     `  ✅ ${s.verified} verified  ❌ ${s.failing} failing  🧪 ${s.unverified} unverified  📋 ${s.specified} specified\n`,
   );
-  process.stdout.write(`  ⚠️  ${s.drift} drift   👻 ${s.orphanTests} orphan tests   Coverage: ${s.coveragePct}%\n`);
+  process.stdout.write(`  ⚠️  ${s.drift} drift   ⏳ ${s.stale} stale   👻 ${s.orphanTests} orphan tests   Coverage: ${s.coveragePct}%\n`);
   if (report.comparedTo) {
     process.stdout.write(`  vs ${report.comparedTo.ref ?? 'prior'} (${report.comparedTo.generatedAt}) — ⛔ ${s.regressions} regression(s)\n`);
   }
@@ -344,9 +344,10 @@ function printTraceSummary(report: TraceReport, written: string[]): void {
 }
 
 function exitCode(report: TraceReport, failOn: string): number {
-  const { failing, drift, regressions } = report.stats;
+  const { failing, drift, regressions, stale } = report.stats;
   if (failOn === 'failing' && failing > 0) return 1;
   if (failOn === 'regression' && regressions > 0) return 1;
+  if (failOn === 'stale' && (failing > 0 || stale > 0)) return 1;
   if (failOn === 'drift' && (failing > 0 || drift > 0)) return 1;
   return 0;
 }

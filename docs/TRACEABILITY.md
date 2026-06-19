@@ -25,6 +25,7 @@ the pattern with `keyPattern` in the config (any regex, e.g. `REQ-\d+` or `#\d+`
 | 🧪 **unverified** | referenced by a test, but no result was ingested (not run / skipped-only) |
 | 📋 **specified** | the requirement exists but **no** test references it |
 | ⚠️ **drift** | declared *done* in the source, but not verified — *"done" may not be true* |
+| ⏳ **stale** | has a result, but it predates the covering test files or the current commit — *re-run to confirm the green* |
 | 👻 **orphan test** | a test tags a key that has no matching requirement |
 
 ## Quick start
@@ -217,6 +218,7 @@ md all stay current automatically.
 
 ```bash
 acp trace --config acp-trace.json --fail-on failing      # exit 1 if any requirement is failing
+acp trace --config acp-trace.json --fail-on stale        # exit 1 if anything is failing OR stale (outdated green)
 acp trace --config acp-trace.json --fail-on drift        # exit 1 if anything is failing OR drifting
 acp trace --config acp-trace.json --run --fail-on regression  # run suites; exit 1 on any regression
 ```

@@ -17,6 +17,7 @@ import { renderHtml } from './report/html.js';
 import { renderMarkdown } from './report/markdown.js';
 import { runCommands, type CommandRun, type RunnableSpec } from './runner.js';
 import { applyDiff, loadBaseline, saveRun } from './history.js';
+import { markStale } from './stale.js';
 import { DEFAULT_KEY_PATTERN, readMappingFile, scanTestSources, type TestSourceSpec } from './testScanner.js';
 import { globFiles } from './glob.js';
 import type { Requirement, TestRef, TraceReport } from './types.js';
@@ -133,6 +134,7 @@ export async function runTraceDetailed(
     generatedAt: new Date().toISOString(),
     project: config.project,
   });
+  markStale(report, repoDir);
 
   // 4. History: diff against the prior run, then persist this one.
   if (config.history) {

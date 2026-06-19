@@ -464,7 +464,7 @@ See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for the full roadmap.
 
 **Traceability — hardening & adoption (in progress):**
 - [x] Portal auth — `--token`/`RTM_TOKEN` (Bearer / `?token=` / cookie) + `--public` for read-only views; compose deploy is safe once `RTM_TOKEN` is set.
-- [ ] Stale-results guard — flag requirements whose results predate the code (prevent false greens)
+- [x] Stale-results guard — ⏳ flags a requirement whose result predates its covering tests or the current commit (`--fail-on stale`), so an outdated green never reads as fresh truth.
 - [ ] Regression notifications (`--notify <webhook>`) + a GitHub Action that comments on the PR
 - [ ] Portal depth (per-requirement drill-down, run permalinks, coverage trend) + `runs/` retention
 - [ ] One-command org onboarding (generate token + scaffold compose + CI; "5-minute setup")

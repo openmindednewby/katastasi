@@ -5,12 +5,13 @@
  */
 import type { RequirementState, TraceReport, TracedRequirement } from '../types.js';
 
-const STATE_COLOR: Record<RequirementState | 'drift', string> = {
+const STATE_COLOR: Record<RequirementState | 'drift' | 'stale', string> = {
   verified: '#1a7f37',
   failing: '#cf222e',
   unverified: '#9a6700',
   specified: '#57606a',
   drift: '#bc4c00',
+  stale: '#8250df',
 };
 
 function esc(s: string): string {
@@ -35,13 +36,14 @@ function row(r: TracedRequirement, regressedFrom?: RequirementState): string {
   const drift = r.drift ? ' ⚠️' : '';
   const regressed = regressedFrom !== undefined;
   const wasMarker = regressed ? ` <span class="was">↩ was ${regressedFrom}</span>` : '';
+  const staleMarker = r.stale ? ' <span class="stale" title="results predate the tests / commit">⏳ stale</span>' : '';
   const search = esc(`${r.key} ${r.title} ${r.declaredStatus ?? ''}`.toLowerCase());
   return (
-    `<tr data-state="${r.state}" data-drift="${r.drift}" data-regressed="${regressed}" data-search="${search}">` +
+    `<tr data-state="${r.state}" data-drift="${r.drift}" data-regressed="${regressed}" data-stale="${r.stale}" data-search="${search}">` +
     `<td class="key">${keyCell(r)}${drift}</td>` +
     `<td>${esc(r.title)}</td>` +
     `<td>${esc(r.declaredStatus ?? '—')}</td>` +
-    `<td>${pill(r.state)}${wasMarker}</td>` +
+    `<td>${pill(r.state)}${wasMarker}${staleMarker}</td>` +
     `<td class="num">${tests}</td>` +
     `<td class="num">${r.result.passed}/${r.result.failed}/${r.result.skipped}</td>` +
     `<td>${lastRun}</td>` +
@@ -65,6 +67,7 @@ function cards(report: TraceReport): string {
     statCard('Unverified', s.unverified, STATE_COLOR.unverified, 'unverified'),
     statCard('Specified', s.specified, STATE_COLOR.specified, 'specified'),
     statCard('Drift', s.drift, STATE_COLOR.drift, 'drift'),
+    statCard('Stale', s.stale, STATE_COLOR.stale, 'stale'),
   ];
   if (report.comparedTo) list.push(statCard('Regressions', s.regressions, STATE_COLOR.failing, 'regression'));
   list.push(statCard('Coverage', `${s.coveragePct}%`, STATE_COLOR.verified, 'all'));
@@ -119,6 +122,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}.key{font-family:ui-mo
 .banner{margin-bottom:16px;padding:12px 16px;background:#fff5f5;border:1px solid #ffc1c1;border-left:4px solid #cf222e;border-radius:8px}
 .banner h2{font-size:15px;margin:0 0 6px;color:#cf222e}.banner ul{margin:0;padding-left:18px}.banner code{background:#fff;padding:1px 5px;border-radius:4px}
 .was{display:inline-block;margin-left:6px;font-size:11px;color:#cf222e;font-weight:600}
+.stale{display:inline-block;margin-left:6px;font-size:11px;color:#8250df;font-weight:600}
 tr.hidden{display:none}`;
 
 const SCRIPT = `
@@ -127,8 +131,8 @@ const cards=[...document.querySelectorAll('.card')];
 const search=document.getElementById('q');
 let active='all';
 function apply(){const q=search.value.trim().toLowerCase();
-  for(const r of rows){const st=r.dataset.state,dr=r.dataset.drift==='true',rg=r.dataset.regressed==='true';
-    const okFilter=active==='all'||st===active||(active==='drift'&&dr)||(active==='regression'&&rg);
+  for(const r of rows){const st=r.dataset.state,dr=r.dataset.drift==='true',rg=r.dataset.regressed==='true',sl=r.dataset.stale==='true';
+    const okFilter=active==='all'||st===active||(active==='drift'&&dr)||(active==='regression'&&rg)||(active==='stale'&&sl);
     const okText=!q||r.dataset.search.includes(q);
     r.classList.toggle('hidden',!(okFilter&&okText));}}
 cards.forEach(c=>c.addEventListener('click',()=>{active=c.dataset.filter;

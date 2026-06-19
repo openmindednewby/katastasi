@@ -95,6 +95,8 @@ export interface TracedRequirement extends Requirement {
   state: RequirementState;
   /** Declared complete but not verified → the requirement may not actually hold. */
   drift: boolean;
+  /** Has a result, but it predates the covering tests / the current commit → green may be outdated. */
+  stale: boolean;
   tests: TestRef[];
   result: KeyResult;
 }
@@ -108,6 +110,8 @@ export interface TraceStats {
   specified: number;
   drift: number;
   orphanTests: number;
+  /** Number of requirements whose result is outdated relative to the code. */
+  stale: number;
   /** Number of requirements whose state got worse since the compared run (0 when no comparison). */
   regressions: number;
   /** verified / total as a 0–100 integer percentage. */

@@ -63,6 +63,7 @@ function statsTable(report: TraceReport): string {
     `| 🧪 Unverified | ${s.unverified} |`,
     `| 📋 Specified | ${s.specified} |`,
     `| ⚠️ Drift | ${s.drift} |`,
+    `| ⏳ Stale | ${s.stale} |`,
     `| 👻 Orphan tests | ${s.orphanTests} |`,
     ...(report.comparedTo ? [`| ⛔ Regressions | ${s.regressions} |`] : []),
     `| **Verified coverage** | **${s.coveragePct}%** |`,
@@ -73,7 +74,8 @@ function requirementRow(r: TracedRequirement): string {
   const tests = r.tests.length ? String(r.tests.length) : '—';
   const lastRun = r.result.lastRun ? r.result.lastRun.slice(0, 10) : '—';
   const declared = r.declaredStatus ? cell(r.declaredStatus) : '—';
-  return `| ${link(r.key, r.url)} | ${cell(r.title)} | ${declared} | ${stateBadge(r.state)} | ${tests} | ${lastRun} |`;
+  const state = `${stateBadge(r.state)}${r.stale ? ' ⏳' : ''}`;
+  return `| ${link(r.key, r.url)} | ${cell(r.title)} | ${declared} | ${state} | ${tests} | ${lastRun} |`;
 }
 
 function matrix(report: TraceReport): string {
@@ -88,6 +90,13 @@ function driftSection(report: TraceReport): string {
     (r) => `- **${link(r.key, r.url)}** — declared "${cell(r.declaredStatus ?? 'complete')}", but ${stateBadge(r.state)}`,
   );
   return ['', '## ⚠️ Drift — declared done but not verified', '', ...items].join('\n');
+}
+
+function staleSection(report: TraceReport): string {
+  const stale = report.requirements.filter((r) => r.stale);
+  if (!stale.length) return '';
+  const items = stale.map((r) => `- **${link(r.key, r.url)}** ${cell(r.title)} — ${stateBadge(r.state)} but results predate the code (last run ${r.result.lastRun ? r.result.lastRun.slice(0, 10) : '—'})`);
+  return ['', '## ⏳ Stale — re-run to confirm (results older than the tests / commit)', '', ...items].join('\n');
 }
 
 function orphanSection(report: TraceReport): string {
@@ -113,6 +122,7 @@ export function renderMarkdown(report: TraceReport): string {
     matrix(report),
     regressionSection(report),
     improvementSection(report),
+    staleSection(report),
     driftSection(report),
     orphanSection(report),
     '',
