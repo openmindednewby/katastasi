@@ -16,7 +16,8 @@ import { getConfig } from '../core/config.js';
 import { loadTraceConfig, starterConfig, DEFAULT_CONFIG_FILENAME } from '../core/trace/config.js';
 import { autodetect, REQUIREMENTS_STUB } from '../core/trace/autodetect.js';
 import { scaffoldOrg } from '../core/trace/scaffold.js';
-import { runTrace } from '../core/trace/index.js';
+import { scaffoldTest } from '../core/trace/scaffoldTest.js';
+import { runTrace, requirementStatus } from '../core/trace/index.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -309,6 +310,46 @@ traceCmd
         token: opts.token ?? process.env.RTM_TOKEN,
         public: opts.public,
       });
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+traceCmd
+  .command('scaffold-test')
+  .description('Write a framework-correct, key-tagged test stub for a requirement (agent/dashboard test creation).')
+  .argument('<key>', 'requirement key, e.g. PROJ-1')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--tech <tech>', 'which test group to scaffold into (playwright|jest|vitest|node|xunit); default the first')
+  .option('--title <title>', 'test title (default: the key)')
+  .action((key: string, opts) => {
+    try {
+      const configPath = resolve(opts.config);
+      const config = loadTraceConfig(configPath);
+      const r = scaffoldTest(config, dirname(configPath), { key, tech: opts.tech, title: opts.title });
+      process.stdout.write(`\n  ${r.created ? 'Wrote' : 'Kept existing'} ${r.path} (${r.tech}) — tagged @${key.toUpperCase()}\n  Implement it, then:  acp trace --run --config ${opts.config}\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+traceCmd
+  .command('status')
+  .description('Print one requirement\'s current state (is KEY verified?).')
+  .argument('<key>', 'requirement key, e.g. PROJ-1')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .action(async (key: string, opts) => {
+    try {
+      const configPath = resolve(opts.config);
+      const config = loadTraceConfig(configPath);
+      const r = await requirementStatus(config, dirname(configPath), key);
+      if (!r) {
+        process.stdout.write(`\n  ${key.toUpperCase()} not found in the requirements.\n`);
+        process.exit(2);
+      }
+      process.stdout.write(`\n  ${r.key}: ${r.state}${r.drift ? ' ⚠️ drift' : ''}${r.stale ? ' ⏳ stale' : ''}\n`);
+      process.stdout.write(`  ${r.title}\n  tests: ${r.tests.length}  ·  passed/failed/skipped: ${r.result.passed}/${r.result.failed}/${r.result.skipped}${r.result.lastRun ? `  ·  last run ${r.result.lastRun.slice(0, 16)}` : ''}\n`);
+      process.exit(r.state === 'verified' ? 0 : 1);
     } catch (err) {
       fail(err);
     }

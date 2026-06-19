@@ -19,7 +19,8 @@ import { publishConfluence } from '../core/confluence.js';
 import { pullJira, pullConfluence } from '../core/pull.js';
 import { pushFolder } from '../core/push.js';
 import { loadTraceConfig } from '../core/trace/config.js';
-import { runTrace, renderAll } from '../core/trace/index.js';
+import { runTrace, renderAll, requirementStatus } from '../core/trace/index.js';
+import { scaffoldTest } from '../core/trace/scaffoldTest.js';
 import { generateQuestions } from '../core/questions/generate.js';
 
 const server = new McpServer({ name: 'ai-confluence-pipeline', version: '0.1.0' });
@@ -279,6 +280,64 @@ server.registerTool(
         content: [{ type: 'text' as const, text: lines.join('\n') }],
         structuredContent: { out: outPath, questions: data.questions.length, edges: data.edges.length, unmapped },
       };
+    } catch (err) {
+      return errorResult(err);
+    }
+  },
+);
+
+server.registerTool(
+  'scaffold_test',
+  {
+    title: 'Scaffold a key-tagged test stub for a requirement',
+    description:
+      'Create a framework-correct test stub (Playwright/Jest/Vitest/node/xUnit) tagged with a ' +
+      'requirement key, in the right test directory, from acp-trace.json. Use this when implementing a ' +
+      'ticket: scaffold the test for `key`, implement it, then call requirements_trace to confirm it is ' +
+      'verified. Never clobbers an existing file. The stub fails until implemented (a red definition of done).',
+    inputSchema: {
+      key: z.string().describe('Requirement key, e.g. PROJ-1.'),
+      configPath: z.string().optional().describe('Path to acp-trace.json (default: ./acp-trace.json).'),
+      tech: z.string().optional().describe('Which test group to scaffold into (playwright|jest|vitest|node|xunit); default the first.'),
+      title: z.string().optional().describe('Test title (default: the key).'),
+    },
+  },
+  async (args) => {
+    try {
+      const configPath = resolve(args.configPath ?? 'acp-trace.json');
+      const config = loadTraceConfig(configPath);
+      const r = scaffoldTest(config, dirname(configPath), { key: args.key, tech: args.tech, title: args.title });
+      return {
+        content: [{ type: 'text' as const, text: `${r.created ? 'Wrote' : 'Kept existing'} ${r.path} (${r.tech}) tagged @${args.key.toUpperCase()}. Implement it, then run requirements_trace.` }],
+        structuredContent: r as unknown as Record<string, unknown>,
+      };
+    } catch (err) {
+      return errorResult(err);
+    }
+  },
+);
+
+server.registerTool(
+  'requirement_status',
+  {
+    title: 'Status of one requirement',
+    description:
+      'Return one requirement\'s current state (verified / failing / unverified / specified, plus drift ' +
+      '/ stale, the covering tests, and last run) from acp-trace.json — the quick "is KEY done?" check ' +
+      'before closing a ticket. For the full matrix use requirements_trace.',
+    inputSchema: {
+      key: z.string().describe('Requirement key, e.g. PROJ-1.'),
+      configPath: z.string().optional().describe('Path to acp-trace.json (default: ./acp-trace.json).'),
+    },
+  },
+  async (args) => {
+    try {
+      const configPath = resolve(args.configPath ?? 'acp-trace.json');
+      const config = loadTraceConfig(configPath);
+      const r = await requirementStatus(config, dirname(configPath), args.key);
+      if (!r) return { content: [{ type: 'text' as const, text: `${args.key.toUpperCase()} not found in the requirements.` }] };
+      const text = `${r.key}: ${r.state}${r.drift ? ' (drift)' : ''}${r.stale ? ' (stale)' : ''} — ${r.tests.length} test(s), ${r.result.passed}/${r.result.failed}/${r.result.skipped} pass/fail/skip`;
+      return { content: [{ type: 'text' as const, text }], structuredContent: r as unknown as Record<string, unknown> };
     } catch (err) {
       return errorResult(err);
     }

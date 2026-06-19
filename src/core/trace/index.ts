@@ -162,6 +162,12 @@ export async function runTraceDetailed(
   return { report, commands };
 }
 
+/** Look up one requirement's current state (agent-friendly "is KEY verified?"). */
+export async function requirementStatus(config: TraceConfig, baseDir: string, key: string) {
+  const report = await runTrace(config, baseDir, { save: false });
+  return report.requirements.find((r) => r.key.toUpperCase() === key.toUpperCase()) ?? null;
+}
+
 /** Render a report to every output format. */
 export function renderAll(report: TraceReport): { markdown: string; html: string; json: string } {
   return { markdown: renderMarkdown(report), html: renderHtml(report), json: `${JSON.stringify(report, null, 2)}\n` };
