@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runCommand, runCommands } from '../dist/core/trace/runner.js';
-import { saveRun, listRuns, loadPreviousRun, diffStates, applyDiff } from '../dist/core/trace/history.js';
+import { saveRun, listRuns, loadPreviousRun, diffStates, applyDiff, pruneRuns } from '../dist/core/trace/history.js';
 import { computeReport } from '../dist/core/trace/computeState.js';
 import { parseTraceConfig } from '../dist/core/trace/config.js';
 import { runTrace } from '../dist/core/trace/index.js';
@@ -68,6 +68,23 @@ test('saveRun + listRuns + loadPreviousRun round-trip', () => {
   assert.equal(listRuns(dir).length, 1);
   const prev = loadPreviousRun(dir);
   assert.equal(prev.requirements[0].key, 'PROJ-1');
+});
+
+test('pruneRuns keeps only the newest N snapshots', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rtm-prune-'));
+  // Distinct filenames need distinct generatedAt; stamp them by hand.
+  for (const ts of ['2026-06-19T01:00:00.000Z', '2026-06-19T02:00:00.000Z', '2026-06-19T03:00:00.000Z']) {
+    const r = reportWith({ 'PROJ-1': 'verified' });
+    r.generatedAt = ts;
+    saveRun(r, dir);
+  }
+  assert.equal(listRuns(dir).length, 3);
+  const pruned = pruneRuns(dir, 2);
+  assert.equal(pruned, 1);
+  const left = listRuns(dir).map((p) => p.split(/[\\/]/).pop());
+  assert.equal(left.length, 2);
+  assert.ok(left.some((n) => n.startsWith('2026-06-19T03'))); // newest kept
+  assert.ok(!left.some((n) => n.startsWith('2026-06-19T01'))); // oldest pruned
 });
 
 /* ── diff ── */

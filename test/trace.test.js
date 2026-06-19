@@ -199,6 +199,7 @@ test('renderHtml: self-contained doc with data + filter script', () => {
   assert.match(html, /id="rtm-data"/);
   assert.match(html, /data-state="verified"/);
   assert.match(html, /data-drift="true"/);
+  assert.match(html, /details class="tests"/); // per-requirement drill-down
   assert.ok(!html.includes('</script><script>') === false); // has both scripts
 });
 

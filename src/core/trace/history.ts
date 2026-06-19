@@ -3,7 +3,7 @@
  * current run is diffed against the previous (or a named baseline) to flag requirements whose state
  * got worse — that's the regression signal (e.g. verified → failing between two commits).
  */
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RequirementState, StateChange, TraceReport } from './types.js';
 
@@ -33,6 +33,21 @@ export function listRuns(dir: string): string[] {
     return [];
   }
   return names.sort().map((n) => join(dir, n));
+}
+
+/** Keep only the newest `keep` run snapshots in `dir`; delete the rest. Returns how many were pruned. */
+export function pruneRuns(dir: string, keep: number): number {
+  if (keep <= 0) return 0;
+  const runs = listRuns(dir); // oldest first
+  const excess = runs.slice(0, Math.max(0, runs.length - keep));
+  for (const path of excess) {
+    try {
+      unlinkSync(path);
+    } catch {
+      /* ignore */
+    }
+  }
+  return excess.length;
 }
 
 /** Parse a run file, or null if missing/corrupt. */

@@ -112,7 +112,7 @@ Without results a referenced requirement is **🧪 unverified**; with a passing 
       "mapping": "docs/traceability.yml"
     }
   ],
-  "history": { "dir": "runs" },
+  "history": { "dir": "runs", "keep": 100 },
   "portal": { "port": 8787 },
   "output": { "markdown": "docs/RTM.md", "html": "docs/rtm.html", "json": "docs/rtm.json" },
   "publish": {
@@ -187,6 +187,11 @@ The dashboard **auto-refreshes**: it subscribes to `/events` and reloads wheneve
 from a `POST /run` (even one triggered by n8n/CI), a `--watch` re-trace, or a read-only `--pull`. Add
 `--watch` to re-trace on an interval (default 5s) so the page tracks result files as they update:
 `acp trace serve --watch`.
+
+It also has depth: each requirement row **expands** to the tests covering it (file:line + how they're
+linked), the toolbar shows a **coverage-trend sparkline** across recent runs, and every entry in the
+**History** list is a permalink (`GET /runs/<snapshot>`) to that past run's dashboard. Cap stored runs
+with `history.keep` (e.g. `100`) — older snapshots are pruned on save.
 
 **Deploy it as an always-on service** (local-first, storage stays on each machine) via
 [`docker-compose.trace.yml`](../docker-compose.trace.yml): a **per-person local service** (`acp-trace`,

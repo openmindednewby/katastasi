@@ -16,7 +16,7 @@ import { ingestResults } from './results.js';
 import { renderHtml } from './report/html.js';
 import { renderMarkdown } from './report/markdown.js';
 import { runCommands, type CommandRun, type RunnableSpec } from './runner.js';
-import { applyDiff, loadBaseline, saveRun } from './history.js';
+import { applyDiff, loadBaseline, pruneRuns, saveRun } from './history.js';
 import { markStale } from './stale.js';
 import { DEFAULT_KEY_PATTERN, readMappingFile, scanTestSources, type TestSourceSpec } from './testScanner.js';
 import { globFiles } from './glob.js';
@@ -143,7 +143,10 @@ export async function runTraceDetailed(
       const prev = loadBaseline(historyDir, config.history.baseline);
       if (prev) applyDiff(report, prev);
     }
-    if (opts.save !== false) saveRun(report, historyDir);
+    if (opts.save !== false) {
+      saveRun(report, historyDir);
+      if (config.history.keep) pruneRuns(historyDir, config.history.keep);
+    }
   }
 
   return { report, commands };

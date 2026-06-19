@@ -38,10 +38,15 @@ function row(r: TracedRequirement, regressedFrom?: RequirementState): string {
   const wasMarker = regressed ? ` <span class="was">↩ was ${regressedFrom}</span>` : '';
   const staleMarker = r.stale ? ' <span class="stale" title="results predate the tests / commit">⏳ stale</span>' : '';
   const search = esc(`${r.key} ${r.title} ${r.declaredStatus ?? ''}`.toLowerCase());
+  const testList = r.tests.length
+    ? `<details class="tests"><summary>${r.tests.length} test${r.tests.length === 1 ? '' : 's'}</summary><ul>` +
+      r.tests.map((t) => `<li><code>${esc(t.file)}${t.line ? `:${t.line}` : ''}</code> <span class="via">${esc(t.via)}</span></li>`).join('') +
+      '</ul></details>'
+    : '';
   return (
     `<tr data-state="${r.state}" data-drift="${r.drift}" data-regressed="${regressed}" data-stale="${r.stale}" data-search="${search}">` +
     `<td class="key">${keyCell(r)}${drift}</td>` +
-    `<td>${esc(r.title)}</td>` +
+    `<td>${esc(r.title)}${testList}</td>` +
     `<td>${esc(r.declaredStatus ?? '—')}</td>` +
     `<td>${pill(r.state)}${wasMarker}${staleMarker}</td>` +
     `<td class="num">${tests}</td>` +
@@ -123,6 +128,9 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}.key{font-family:ui-mo
 .banner h2{font-size:15px;margin:0 0 6px;color:#cf222e}.banner ul{margin:0;padding-left:18px}.banner code{background:#fff;padding:1px 5px;border-radius:4px}
 .was{display:inline-block;margin-left:6px;font-size:11px;color:#cf222e;font-weight:600}
 .stale{display:inline-block;margin-left:6px;font-size:11px;color:#8250df;font-weight:600}
+.tests{margin-top:3px}.tests summary{cursor:pointer;font-size:12px;color:#0969da}
+.tests ul{margin:4px 0 0;padding-left:16px}.tests li{font-size:12px;margin:1px 0}
+.tests code{background:#f6f8fa;padding:0 4px;border-radius:4px}.via{color:#8c959f;font-size:11px}
 tr.hidden{display:none}`;
 
 const SCRIPT = `

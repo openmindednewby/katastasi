@@ -466,7 +466,7 @@ See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for the full roadmap.
 - [x] Portal auth — `--token`/`RTM_TOKEN` (Bearer / `?token=` / cookie) + `--public` for read-only views; compose deploy is safe once `RTM_TOKEN` is set.
 - [x] Stale-results guard — ⏳ flags a requirement whose result predates its covering tests or the current commit (`--fail-on stale`), so an outdated green never reads as fresh truth.
 - [x] Regression notifications — `--notify <webhook>` / `notify` config (Slack/Teams/generic, on regression/failing/stale/always) + a copy-paste [GitHub Action](docs/ci/rtm-github-action.yml) that runs the suites, fails the PR on a regression, and comments the RTM.
-- [ ] Portal depth (per-requirement drill-down, run permalinks, coverage trend) + `runs/` retention
+- [x] Portal depth — per-requirement drill-down (tests/files), run permalinks (`GET /runs/<snapshot>`), a coverage-trend sparkline, and `history.keep` retention (old snapshots pruned on save).
 - [ ] One-command org onboarding (generate token + scaffold compose + CI; "5-minute setup")
 
 **Next up:**

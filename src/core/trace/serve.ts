@@ -11,10 +11,10 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import type { TraceConfig } from './config.js';
 import { loadTraceConfig } from './config.js';
-import { listRuns, loadPreviousRun } from './history.js';
+import { listRuns, loadPreviousRun, loadRun } from './history.js';
 import { runTrace } from './index.js';
 import { publishConfluenceReport, stampJiraLabels, updateRoadmapSection, writeOutputs } from './publish.js';
 import { shouldNotify, sendNotification } from './notify.js';
@@ -83,6 +83,16 @@ function runsFor(historyDir: string | null): string[] {
     .slice(0, 20);
 }
 
+/** Coverage % across the last 20 runs (oldest → newest), for the trend sparkline. */
+function trendFor(historyDir: string | null): number[] {
+  if (!historyDir) return [];
+  return listRuns(historyDir)
+    .slice(-20)
+    .map((p) => loadRun(p))
+    .filter((r): r is NonNullable<typeof r> => Boolean(r))
+    .map((r) => r.stats.coveragePct);
+}
+
 /** Start the portal. Resolves with the listening server (kept alive until stopped). */
 export async function serve(configPath: string, baseDir: string, opts: ServeOptions = {}): Promise<Server> {
   const config = loadTraceConfig(configPath);
@@ -135,8 +145,9 @@ export async function serve(configPath: string, baseDir: string, opts: ServeOpti
     const url = new URL(req.url ?? '/', 'http://localhost');
     const key = `${req.method} ${url.pathname}`;
 
+    const publicGet = PUBLIC_GET.has(key) || (req.method === 'GET' && url.pathname.startsWith('/runs/'));
     // Auth gate: a token protects everything, unless --public exempts read-only GETs.
-    if (token && !isAuthorized(req, url, token) && !(isPublic && PUBLIC_GET.has(key))) {
+    if (token && !isAuthorized(req, url, token) && !(isPublic && publicGet)) {
       if (req.method === 'GET' && (key === 'GET /' || key === 'GET /index.html')) {
         res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end('<p>Unauthorized. Append <code>?token=YOUR_TOKEN</code> to the URL (set when the portal was started).</p>');
@@ -149,7 +160,15 @@ export async function serve(configPath: string, baseDir: string, opts: ServeOpti
       if (readOnly && historyDir) current = loadPreviousRun(historyDir) ?? current;
       // Remember the token in a cookie so the dashboard's fetch()/EventSource carry it on reload.
       const headers: Record<string, string> = token ? { 'Set-Cookie': `rtm_token=${token}; HttpOnly; SameSite=Strict; Path=/` } : {};
-      return sendHtml(res, portalPage(current as TraceReport, runsFor(historyDir), { readOnly, live: true }), headers);
+      return sendHtml(res, portalPage(current as TraceReport, runsFor(historyDir), { readOnly, live: true, trend: trendFor(historyDir) }), headers);
+    }
+    // Permalink to a historical run snapshot (read-only, no auto-refresh).
+    if (req.method === 'GET' && url.pathname.startsWith('/runs/')) {
+      const file = decodeURIComponent(url.pathname.slice('/runs/'.length));
+      if (!historyDir || file.includes('/') || file.includes('..') || !file.endsWith('.json')) return sendJson(res, 404, { error: 'run not found' });
+      const snap = loadRun(join(historyDir, file));
+      if (!snap) return sendJson(res, 404, { error: 'run not found' });
+      return sendHtml(res, portalPage(snap, runsFor(historyDir), { readOnly: true, live: false, trend: trendFor(historyDir) }));
     }
     if (key === 'GET /events') return openEventStream(req, res, clients);
     if (key === 'GET /api/report') {
@@ -214,7 +233,8 @@ const PORTAL_STYLE = `
 .ro-badge{background:#ddf4ff;color:#0969da;border:1px solid #54aeff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600}
 .run-opt{font-size:13px;color:#57606a}.portal-links a{font-size:13px;color:#0969da}
 .runs{font-size:13px}.runs ul{margin:6px 0 0;padding-left:18px;max-height:160px;overflow:auto}
-.runs code{font-family:ui-monospace,Menlo,Consolas,monospace}`;
+.runs code{font-family:ui-monospace,Menlo,Consolas,monospace}.runs a{color:#0969da;text-decoration:none}
+.spark{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#1a7f37;font-weight:600}`;
 
 const PORTAL_SCRIPT = `
 const btn=document.getElementById('rtm-run'),chk=document.getElementById('rtm-suites');
@@ -225,10 +245,25 @@ btn&&btn.addEventListener('click',async()=>{btn.disabled=true;btn.textContent='R
 // Auto-refresh: reload when the server signals the report changed (a run, a watch tick, a pull).
 const SSE_SCRIPT = `try{const es=new EventSource('/events');es.onmessage=()=>location.reload();}catch(_){}`;
 
+/** A tiny inline SVG sparkline of coverage % across recent runs. */
+function sparkline(trend: number[]): string {
+  if (trend.length < 2) return '';
+  const w = 120;
+  const h = 22;
+  const pts = trend
+    .map((v, i) => `${((i / (trend.length - 1)) * w).toFixed(1)},${(h - (Math.max(0, Math.min(100, v)) / 100) * h).toFixed(1)}`)
+    .join(' ');
+  return `<span class="spark" title="coverage trend (last ${trend.length} runs)"><svg width="${w}" height="${h}"><polyline fill="none" stroke="#1a7f37" stroke-width="1.5" points="${pts}"/></svg>${trend[trend.length - 1]}%</span>`;
+}
+
 /** Inject the portal toolbar + script into the static dashboard HTML. */
-export function portalPage(report: TraceReport, runs: string[], opts: { readOnly?: boolean; live?: boolean } = {}): string {
+export function portalPage(
+  report: TraceReport,
+  runs: string[],
+  opts: { readOnly?: boolean; live?: boolean; trend?: number[] } = {},
+): string {
   const runsList = runs.length
-    ? runs.map((r) => `<li><code>${r.replace(/</g, '&lt;')}</code></li>`).join('')
+    ? runs.map((r) => { const e = r.replace(/</g, '&lt;'); return `<li><a href="/runs/${encodeURIComponent(r)}"><code>${e}</code></a></li>`; }).join('')
     : '<li>(no history yet)</li>';
   const control = opts.readOnly
     ? '<span class="ro-badge">● read-only · git-backed</span>'
@@ -237,6 +272,7 @@ export function portalPage(report: TraceReport, runs: string[], opts: { readOnly
   const toolbar =
     '<div class="portal">' +
     control +
+    sparkline(opts.trend ?? []) +
     '<span class="portal-links"><a href="/api/report" target="_blank">JSON</a></span>' +
     `<details class="runs"><summary>History (${runs.length})</summary><ul>${runsList}</ul></details>` +
     '</div>';

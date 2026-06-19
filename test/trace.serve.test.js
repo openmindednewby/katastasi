@@ -35,6 +35,41 @@ test('portalPage read-only: no Run button, shows the git-backed badge', () => {
   assert.match(html, /read-only · git-backed/);
 });
 
+test('portalPage: trend renders a sparkline + history links to permalinks', () => {
+  const html = portalPage(demoReport(), ['2026-a.json', '2026-b.json'], { trend: [50, 75, 90] });
+  assert.match(html, /<polyline/);
+  assert.match(html, /90%/);
+  assert.match(html, /href="\/runs\/2026-a\.json"/);
+});
+
+test('serve: /runs/<file> serves a historical snapshot; path traversal 404s', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'rtm-perma-'));
+  mkdirSync(join(root, 'docs'), { recursive: true });
+  mkdirSync(join(root, 'runs'), { recursive: true });
+  writeFileSync(join(root, 'docs', 'requirements.md'), '- [x] PROJ-1 Login');
+  const snapshot = {
+    generatedAt: '2026-06-19T00:00:00Z', git: { sha: 'a', shortSha: 'abc12345', branch: 'main', dirty: false, committedAt: null },
+    requirements: [{ key: 'PROJ-1', title: 'Login', declaredStatus: 'Done', declaredComplete: true, source: 'markdown', state: 'verified', drift: false, stale: false, tests: [], result: { passed: 1, failed: 0, skipped: 0, lastRun: null } }],
+    orphanTests: [], stats: { total: 1, verified: 1, failing: 0, unverified: 0, specified: 0, drift: 0, orphanTests: 0, stale: 0, regressions: 0, coveragePct: 100 },
+  };
+  writeFileSync(join(root, 'runs', '2026-06-19T00-00-00-000Z_abc12345.json'), JSON.stringify(snapshot));
+  writeFileSync(join(root, 'acp-trace.json'), JSON.stringify({ scopes: [{ requirements: [{ type: 'markdown', path: 'docs/requirements.md' }], tests: [] }], history: { dir: 'runs' } }));
+
+  const port = 8916;
+  const server = await serve(join(root, 'acp-trace.json'), root, { port });
+  try {
+    const base = `http://127.0.0.1:${port}`;
+    const ok = await fetch(`${base}/runs/2026-06-19T00-00-00-000Z_abc12345.json`);
+    assert.equal(ok.status, 200);
+    assert.match(await ok.text(), /PROJ-1/);
+    assert.equal((await fetch(`${base}/runs/nope.json`)).status, 404);
+    assert.equal((await fetch(`${base}/runs/..%2f..%2facp-trace.json`)).status, 404); // traversal blocked
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((ok) => server.close(ok));
+  }
+});
+
 test('serve: live server answers /api/report, /api/runs, and POST /run', async () => {
   const root = mkdtempSync(join(tmpdir(), 'rtm-serve-'));
   mkdirSync(join(root, 'e2e', 'results'), { recursive: true });
