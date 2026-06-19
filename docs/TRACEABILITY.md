@@ -116,7 +116,8 @@ Without results a referenced requirement is **🧪 unverified**; with a passing 
   "output": { "markdown": "docs/RTM.md", "html": "docs/rtm.html", "json": "docs/rtm.json" },
   "publish": {
     "roadmap": { "path": "docs/roadmap.md", "sectionId": "rtm" },
-    "confluence": { "pageId": "67890", "title": "Requirements Verification" }
+    "confluence": { "pageId": "67890", "title": "Requirements Verification" },
+    "jira": { "verifiedLabel": "verified" }
   }
 }
 ```
@@ -142,6 +143,9 @@ source(s). Requirements from all scopes are merged by key. Use `name` to label w
   Override per-run with `--roadmap <path> --section <id>`.
 - `publish.confluence` — `acp trace --publish-confluence` updates that Confluence page in place
   (markdown → storage format, version bumped).
+- `publish.jira.verifiedLabel` — `acp trace --stamp-jira` adds that label to every **verified** Jira
+  issue and removes it from issues that are no longer verified (only touches `jira-epic` requirements;
+  other labels are left intact). From the portal: `POST /run?stamp=1`.
 
 ## Re-run on demand, history & regressions
 

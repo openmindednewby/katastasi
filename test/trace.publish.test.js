@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { starterConfig, parseTraceConfig } from '../dist/core/trace/config.js';
-import { writeOutputs, updateRoadmapSection, reportSection } from '../dist/core/trace/publish.js';
+import { writeOutputs, updateRoadmapSection, reportSection, planJiraLabelStamp } from '../dist/core/trace/publish.js';
 import { computeReport } from '../dist/core/trace/computeState.js';
 
 function demoReport() {
@@ -35,6 +35,24 @@ test('writeOutputs writes the configured formats', () => {
   assert.match(readFileSync(join(root, 'docs/RTM.md'), 'utf8'), /Requirements Traceability/);
   assert.match(readFileSync(join(root, 'docs/rtm.html'), 'utf8'), /<!doctype html>/);
   assert.ok(existsSync(join(root, 'docs/rtm.json')));
+});
+
+test('planJiraLabelStamp: only Jira issues, add verified / remove the rest', () => {
+  const report = computeReport({
+    requirements: [
+      { key: 'PROJ-1', title: 'A', declaredStatus: null, declaredComplete: false, source: 'jira-epic' },
+      { key: 'PROJ-2', title: 'B', declaredStatus: null, declaredComplete: false, source: 'jira-epic' },
+      { key: 'MD-1', title: 'C', declaredStatus: null, declaredComplete: false, source: 'markdown' },
+    ],
+    refs: [{ key: 'PROJ-1', file: 'f', title: 't', tech: 'jest', via: 'tag' }],
+    ingested: { byKey: new Map([['PROJ-1', { passed: 1, failed: 0, skipped: 0, lastRun: null }]]), occurrences: [] },
+    git: { sha: null, shortSha: null, branch: null, dirty: false, committedAt: null },
+    generatedAt: '2026-06-19T00:00:00Z',
+  });
+  const { toAdd, toRemove } = planJiraLabelStamp(report, 'verified');
+  assert.deepEqual(toAdd, ['PROJ-1']); // verified jira issue
+  assert.deepEqual(toRemove, ['PROJ-2']); // unverified jira issue
+  assert.ok(!toAdd.includes('MD-1') && !toRemove.includes('MD-1')); // markdown reqs are never stamped
 });
 
 test('reportSection demotes the H1 so it nests under an existing doc', () => {

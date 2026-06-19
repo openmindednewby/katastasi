@@ -117,6 +117,21 @@ export async function updateIssue(key: string, fields: Record<string, unknown>, 
   await sendJson<unknown>(creds, 'PUT', `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields }, true);
 }
 
+/**
+ * Add/remove labels on an issue WITHOUT clobbering its other labels (uses Jira's `update` verbs).
+ * No-op when both lists are empty. Returns no body (204).
+ */
+export async function modifyIssueLabels(
+  key: string,
+  add: string[],
+  remove: string[],
+  creds = getJiraCreds(),
+): Promise<void> {
+  const ops = [...add.map((l) => ({ add: l })), ...remove.map((l) => ({ remove: l }))];
+  if (ops.length === 0) return;
+  await sendJson<unknown>(creds, 'PUT', `/rest/api/3/issue/${encodeURIComponent(key)}`, { update: { labels: ops } }, true);
+}
+
 /** Create a Confluence page. `body` is the full content payload. */
 export async function createPage(body: Record<string, unknown>, creds = getConfluenceCreds()): Promise<ConfluencePage> {
   return sendJson<ConfluencePage>(creds, 'POST', '/wiki/rest/api/content', body);

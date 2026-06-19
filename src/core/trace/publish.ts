@@ -5,7 +5,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
-import { getPage, updatePage, pageWebUrl } from '../atlassian.js';
+import { getPage, modifyIssueLabels, updatePage, pageWebUrl } from '../atlassian.js';
 import { getConfluenceCreds } from '../config.js';
 import { markdownToStorage } from '../markdownToStorage.js';
 import type { TraceConfig } from './config.js';
@@ -62,6 +62,30 @@ export function updateRoadmapSection(
   }
   writeFile(path, updateSection(doc, roadmap.sectionId, reportSection(report)));
   return roadmap.path;
+}
+
+/** Which Jira issues should gain / lose the verified label, based on the report. Pure. */
+export function planJiraLabelStamp(report: TraceReport, label: string): { toAdd: string[]; toRemove: string[] } {
+  const toAdd: string[] = [];
+  const toRemove: string[] = [];
+  for (const r of report.requirements) {
+    if (r.source !== 'jira-epic') continue; // only stamp real Jira issues we resolved
+    (r.state === 'verified' ? toAdd : toRemove).push(r.key);
+  }
+  return { toAdd, toRemove };
+}
+
+/** Stamp `verifiedLabel` onto verified Jira issues (and remove it from no-longer-verified ones). */
+export async function stampJiraLabels(
+  report: TraceReport,
+  jira: { verifiedLabel?: string },
+): Promise<{ added: number; removed: number }> {
+  const label = jira.verifiedLabel;
+  if (!label) return { added: 0, removed: 0 };
+  const { toAdd, toRemove } = planJiraLabelStamp(report, label);
+  for (const key of toAdd) await modifyIssueLabels(key, [label], []);
+  for (const key of toRemove) await modifyIssueLabels(key, [], [label]);
+  return { added: toAdd.length, removed: toRemove.length };
 }
 
 /** Update an existing Confluence page in place with the rendered report. Returns the page URL. */

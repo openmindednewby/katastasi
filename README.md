@@ -459,7 +459,7 @@ See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) for the full roadmap.
 - [x] Live Atlassian round-trip verification — `scripts/verify-atlassian.*` (read-only pull + dry-run push) + opt-in `test/atlassian.live.test.js` (skips without creds). See [Traceability guide](docs/TRACEABILITY.md#verifying-live-atlassian-access).
 - [x] Portal visual QA — sample-dashboard generator (`node scripts/preview-rtm.mjs`, covers every state + regression + orphan) + a [visual-QA checklist](docs/VISUAL_QA.md) + static element check. Live in-browser eyeball is a documented manual step.
 - [x] Portal auto-refresh (SSE `/events`) + `--watch` re-trace — the dashboard reloads itself on any run (incl. n8n/CI-triggered), a watch tick, or a read-only pull. Local compose service runs `--watch`.
-- [ ] Jira label stamping (`publish.jira.verifiedLabel`)
+- [x] Jira label stamping — `acp trace --stamp-jira` (or portal `POST /run?stamp=1`) adds `publish.jira.verifiedLabel` to verified Jira issues and removes it when they regress (other labels untouched).
 - [ ] Packaged n8n workflow JSON for scheduled regression runs
 
 **Next up:**

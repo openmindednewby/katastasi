@@ -16,7 +16,7 @@ import type { TraceConfig } from './config.js';
 import { loadTraceConfig } from './config.js';
 import { listRuns, loadPreviousRun } from './history.js';
 import { runTrace } from './index.js';
-import { publishConfluenceReport, updateRoadmapSection, writeOutputs } from './publish.js';
+import { publishConfluenceReport, stampJiraLabels, updateRoadmapSection, writeOutputs } from './publish.js';
 import { renderHtml } from './report/html.js';
 import type { TraceReport } from './types.js';
 
@@ -121,7 +121,7 @@ export async function serve(configPath: string, baseDir: string, opts: ServeOpti
     if (key === 'POST /run') {
       if (readOnly) return sendJson(res, 403, { error: 'read-only dashboard — runs happen on each developer machine' });
       const report = await runTrace(config, baseDir, { run: url.searchParams.get('run') === '1', save: true, compare: true });
-      applySinks(report, config, baseDir, url.searchParams.get('publish') === '1');
+      applySinks(report, config, baseDir, url.searchParams.get('publish') === '1', url.searchParams.get('stamp') === '1');
       setCurrent(report);
       return sendJson(res, 200, { ok: true, stats: report.stats, regressions: report.regressions ?? [] });
     }
@@ -153,12 +153,15 @@ function startPullLoop(repoDir: string, intervalMs: number): void {
   setInterval(pull, intervalMs).unref();
 }
 
-/** Write file outputs + roadmap section (+ Confluence when asked) after a triggered run. */
-function applySinks(report: TraceReport, config: TraceConfig, baseDir: string, publish: boolean): void {
+/** Write file outputs + roadmap section (+ Confluence / Jira labels when asked) after a triggered run. */
+function applySinks(report: TraceReport, config: TraceConfig, baseDir: string, publish: boolean, stamp: boolean): void {
   if (config.output) writeOutputs(report, config.output, baseDir);
   if (config.publish?.roadmap) updateRoadmapSection(report, config.publish.roadmap, baseDir);
   if (publish && config.publish?.confluence) {
     void publishConfluenceReport(report, config.publish.confluence).catch(() => undefined);
+  }
+  if (stamp && config.publish?.jira?.verifiedLabel) {
+    void stampJiraLabels(report, config.publish.jira).catch(() => undefined);
   }
 }
 
