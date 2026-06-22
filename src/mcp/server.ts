@@ -418,7 +418,7 @@ server.registerTool(
       const lines = [
         `Wrote ${r.files.length} file(s) to ${relative(dirname(configPath), r.outDir) || '.'}/: gap-analysis.md, technical-analysis.md, tasks/`,
         `${r.tasks.length} task(s): ${r.tasks.map((t) => t.key).join(', ')}`,
-        `${r.scaffolded.length} test stub(s) scaffolded.`,
+        `${r.scaffolded.length} test stub(s) scaffolded; ${r.nativeTasks.length} native .acp/tasks created.`,
         'Publish with markdown_to_confluence (technical-analysis.md) + markdown_to_jira (tasks/).',
       ];
       return { content: [{ type: 'text' as const, text: lines.join('\n') }], structuredContent: { outDir: r.outDir, files: r.files, tasks: r.tasks.map((t) => t.key), scaffolded: r.scaffolded } };
