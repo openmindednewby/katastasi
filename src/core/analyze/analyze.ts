@@ -13,6 +13,7 @@ import type { TraceConfig } from '../trace/config.js';
 import { gatherRequirements } from '../trace/index.js';
 import { globFiles } from '../trace/glob.js';
 import { scaffoldTest } from '../trace/scaffoldTest.js';
+import { normalizeSpec } from '../trace/acceptance/model.js';
 import { generateQuestions } from '../questions/generate.js';
 import { defaultChat, extractJson, type ChatFn, type ChatMessage } from './ai.js';
 
@@ -26,6 +27,8 @@ export interface AnalyzeTask {
   acceptanceCriteria: string[];
   flowMermaid?: string;
   tests: AnalyzeTaskTest[];
+  /** Executable acceptance cases (Phase 2): raw authoring cases `{ name, steps:[…] }` for the runner. */
+  acceptanceTests?: unknown[];
 }
 export interface AnalyzeOutput {
   gapAnalysis: string;
@@ -37,6 +40,8 @@ export interface AnalyzeResult {
   files: string[];
   tasks: AnalyzeTask[];
   scaffolded: string[];
+  /** Executable acceptance spec files written to `.acp/tests/<KEY>.acp.json` (Phase 2). */
+  acceptanceSpecs: string[];
   /** Native `.acp/tasks` ids created from the stories (local mode; empty otherwise). */
   nativeTasks: string[];
   /** 'ask' (produced an open-questions form) or 'full' (produced the tech docs + tasks). */
@@ -74,9 +79,14 @@ produce a precise technical gap analysis and a development-ready breakdown. Resp
     { "key": "<requirement key, reuse the given keys>", "title": "<short>",
       "acceptanceCriteria": ["<testable criterion>", "..."],
       "flowMermaid": "<a use-case flow as a mermaid 'flowchart TD' body>",
-      "tests": [ { "tech": "playwright", "title": "<e2e test name>" }, { "tech": "jest", "title": "<unit test name>" } ] }
+      "tests": [ { "tech": "playwright", "title": "<e2e test name>" }, { "tech": "jest", "title": "<unit test name>" } ],
+      "acceptanceTests": [ { "name": "<case>", "steps": [ { "POST": "/path", "body": {}, "expect": { "status": 201, "json": { "$.id": "exists" } }, "capture": { "id": "$.id" } } ] } ] }
   ]
-}`;
+}
+Include "acceptanceTests" ONLY for requirements verifiable via an HTTP/REST API or a CLI command — each
+step is either an HTTP method key (GET/POST/PUT/PATCH/DELETE → a path) or { "run": "<command>" }, with an
+"expect" of status/exit, json (\\$.path → "exists"/"absent"/a literal), headers, or bodyContains, plus an
+optional "capture" of variables for chaining. Omit it for purely visual/internal requirements.`;
 
 /** Read the code files' CONTENTS into one capped context block (so the gap analysis sees real code). */
 export function collectCodeContext(
@@ -177,8 +187,23 @@ export function validateOutput(raw: unknown): AnalyzeOutput {
       tests: Array.isArray((t as AnalyzeTask).tests)
         ? (t as AnalyzeTask).tests.map((x) => ({ tech: String(x.tech ?? 'playwright'), title: String(x.title ?? '') }))
         : [],
+      ...(Array.isArray((t as AnalyzeTask).acceptanceTests) ? { acceptanceTests: (t as AnalyzeTask).acceptanceTests } : {}),
     })).filter((t) => t.key),
   };
+}
+
+/**
+ * Validate a task's executable acceptance cases and return the spec JSON (pretty), or null if absent /
+ * malformed. The same JSON is written to `.acp/tests/<KEY>.acp.json` and embedded inline in the story.
+ */
+export function acceptanceSpecJson(t: AnalyzeTask): string | null {
+  if (!Array.isArray(t.acceptanceTests) || t.acceptanceTests.length === 0) return null;
+  try {
+    normalizeSpec({ req: t.key, cases: t.acceptanceTests }, `analyze:${t.key}`); // throws on a bad shape
+  } catch {
+    return null;
+  }
+  return `${JSON.stringify({ req: t.key, cases: t.acceptanceTests }, null, 2)}\n`;
 }
 
 /** Render one Jira-publishable story markdown (first `#` = summary; AC + flow + tests sections). */
@@ -186,7 +211,9 @@ export function taskMarkdown(t: AnalyzeTask): string {
   const ac = t.acceptanceCriteria.length ? t.acceptanceCriteria.map((c) => `- ${c}`).join('\n') : '- (define)';
   const flow = t.flowMermaid ? `\n\n## Flow\n\n\`\`\`mermaid\n${t.flowMermaid.trim()}\n\`\`\`` : '';
   const tests = t.tests.length ? t.tests.map((x) => `- ${x.tech}: ${x.title} \`@${t.key}\``).join('\n') : `- add tests tagged \`@${t.key}\``;
-  return `# ${t.title}\n\n\`${t.key}\`\n\n## Acceptance Criteria\n\n${ac}${flow}\n\n## Tests (tag with @${t.key})\n\n${tests}\n`;
+  const spec = acceptanceSpecJson(t);
+  const acceptance = spec ? `\n\n## Acceptance (executable — \`katastasi test\`)\n\n\`\`\`acp-test\n${spec}\`\`\`` : '';
+  return `# ${t.title}\n\n\`${t.key}\`\n\n## Acceptance Criteria\n\n${ac}${flow}${acceptance}\n\n## Tests (tag with @${t.key})\n\n${tests}\n`;
 }
 
 /** Run the analysis end to end. */
@@ -215,7 +242,7 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
     const { html } = generateQuestions(ask.openQuestionsMarkdown, { mermaid: 'cdn', outPath: join(outDir, 'open-questions.html') });
     writeFileSync(join(outDir, 'open-questions.html'), html, 'utf8');
     files.push(join(outDirRel, 'open-questions.html'));
-    return { outDir, files, tasks: [], scaffolded: [], nativeTasks: [], mode: 'ask', questionsHtml: join(outDirRel, 'open-questions.html') };
+    return { outDir, files, tasks: [], scaffolded: [], acceptanceSpecs: [], nativeTasks: [], mode: 'ask', questionsHtml: join(outDirRel, 'open-questions.html') };
   }
 
   // ── FULL mode: produce the tech docs + tasks (+ stakeholder answers if supplied) ──
@@ -233,6 +260,17 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
   write(join('tasks', 'epic.md'), epic);
   for (const t of out.tasks) write(join('tasks', `${t.key}.md`), taskMarkdown(t));
 
+  // Executable acceptance specs → .acp/tests/<KEY>.acp.json (run via `katastasi test`, verified by trace).
+  const acceptanceSpecs: string[] = [];
+  for (const t of out.tasks) {
+    const spec = acceptanceSpecJson(t);
+    if (!spec) continue;
+    const specRel = join('.acp', 'tests', `${t.key}.acp.json`);
+    mkdirSync(dirname(join(repoDir, specRel)), { recursive: true });
+    writeFileSync(join(repoDir, specRel), spec, 'utf8');
+    acceptanceSpecs.push(relative(baseDir, join(repoDir, specRel)) || specRel);
+  }
+
   const scaffolded: string[] = [];
   if (opts.scaffold !== false) {
     for (const t of out.tasks) {
@@ -249,5 +287,5 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
   const nativeTasks =
     opts.writeTasks === false ? [] : createTasksFromAnalyze(baseDir, config, out.tasks.map((t) => ({ key: t.key, title: t.title })));
 
-  return { outDir, files, tasks: out.tasks, scaffolded, nativeTasks, mode: 'full' };
+  return { outDir, files, tasks: out.tasks, scaffolded, acceptanceSpecs, nativeTasks, mode: 'full' };
 }

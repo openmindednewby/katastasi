@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { extractJson, aiConfigFromEnv } from '../dist/core/analyze/ai.js';
 import { buildPrompt, validateOutput, taskMarkdown, analyze, collectCodeContext } from '../dist/core/analyze/analyze.js';
 import { parseTraceConfig } from '../dist/core/trace/config.js';
+import { gatherSpecFiles } from '../dist/core/trace/acceptance/runner.js';
 
 test('extractJson: handles fences + surrounding prose', () => {
   assert.deepEqual(extractJson('```json\n{"a":1}\n```'), { a: 1 });
@@ -104,4 +105,44 @@ test('analyze --answers: incorporates the answers into the full prompt', async (
   const chat = async (msgs) => { seenAnswers = /STAKEHOLDER ANSWERS[\s\S]*use password auth/.test(msgs[1].content); return FAKE_REPLY; };
   await analyze(config, root, { chat, outDir: 'ta', answers: '- Q1: use password auth', scaffold: false });
   assert.equal(seenAnswers, true); // the answers reached the model
+});
+
+// Phase 2 step 10: analyze emits executable acceptance specs (.acp/tests/<KEY>.acp.json + inline block).
+const FAKE_REPLY_WITH_ACCEPTANCE = JSON.stringify({
+  gapAnalysis: 'PROJ-1 login is missing.',
+  technicalAnalysis: '# Technical Analysis\n\nAuth.',
+  tasks: [
+    {
+      key: 'PROJ-1', title: 'Login', acceptanceCriteria: ['rejects bad creds'], tests: [],
+      acceptanceTests: [
+        { name: 'rejects bad credentials', steps: [{ POST: '/login', body: { user: 'x', pass: 'bad' }, expect: { status: 401 } }] },
+      ],
+    },
+    { key: 'PROJ-2', title: 'Internal calc', acceptanceCriteria: ['math is right'], tests: [] }, // no acceptanceTests
+  ],
+});
+
+test('analyze: writes executable acceptance specs + inline acp-test block', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'rtm-acc-'));
+  mkdirSync(join(root, 'docs'), { recursive: true });
+  writeFileSync(join(root, 'docs', 'requirements.md'), '- [ ] PROJ-1 Login\n- [ ] PROJ-2 Calc');
+  const config = parseTraceConfig(JSON.stringify({ scopes: [{ requirements: [{ type: 'markdown', path: 'docs/requirements.md' }], tests: [] }] }));
+
+  const r = await analyze(config, root, { chat: async () => FAKE_REPLY_WITH_ACCEPTANCE, outDir: 'ta', scaffold: false });
+
+  // spec file written for PROJ-1 only (PROJ-2 has none)
+  assert.equal(r.acceptanceSpecs.length, 1);
+  const specPath = join(root, '.acp', 'tests', 'PROJ-1.acp.json');
+  assert.ok(existsSync(specPath));
+  const spec = JSON.parse(readFileSync(specPath, 'utf8'));
+  assert.equal(spec.req, 'PROJ-1');
+  assert.equal(spec.cases[0].steps[0].expect.status, 401);
+
+  // the spec parses through the gatherer
+  const specs = gatherSpecFiles(root, ['.acp/tests/**/*.acp.json']);
+  assert.equal(specs[0].req, 'PROJ-1');
+
+  // task markdown embeds an inline acp-test block; PROJ-2 does not
+  assert.match(readFileSync(join(root, 'ta', 'tasks', 'PROJ-1.md'), 'utf8'), /```acp-test/);
+  assert.doesNotMatch(readFileSync(join(root, 'ta', 'tasks', 'PROJ-2.md'), 'utf8'), /```acp-test/);
 });
