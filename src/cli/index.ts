@@ -26,6 +26,7 @@ import { addTask, listTasksFiltered, getTask, setTaskStatus, linkTask } from '..
 import { verifyTasks, summarizeDrift } from '../core/trace/tasks/verify.js';
 import { renderBoard, boardPath } from '../core/trace/tasks/board.js';
 import { reportForTasks } from '../core/trace/tasks/report.js';
+import { importJiraTasks } from '../core/trace/tasks/importJira.js';
 import type { TaskVerification } from '../core/trace/tasks/verify.js';
 import type { Task } from '../core/trace/tasks/model.js';
 import { serve } from '../core/trace/serve.js';
@@ -451,6 +452,20 @@ taskCmd
       writeFileSync(out, md, 'utf8');
       const sum = summarizeDrift(vs);
       process.stdout.write(`  Board → ${relative(baseDir, out) || '.'}  (${sum.total} task(s) · ${sum.done} done · ${sum.drift} ⚠️ drift)\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+taskCmd
+  .command('import')
+  .description('Import Jira issues (read-only) into .acp/tasks — requires tasks.mode: jira.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .action(async (opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const r = await importJiraTasks(baseDir, config);
+      process.stdout.write(`\n  Imported ${r.imported.length} Jira issue(s) → .acp/tasks (source: jira)${r.pruned.length ? `; pruned ${r.pruned.length} stale` : ''}\n`);
     } catch (err) {
       fail(err);
     }

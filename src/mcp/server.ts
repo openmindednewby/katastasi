@@ -26,6 +26,7 @@ import { addTask, listTasksFiltered, getTask, setTaskStatus, linkTask } from '..
 import { verifyTasks, summarizeDrift, type TaskVerification } from '../core/trace/tasks/verify.js';
 import { renderBoard, boardPath } from '../core/trace/tasks/board.js';
 import { reportForTasks } from '../core/trace/tasks/report.js';
+import { importJiraTasks } from '../core/trace/tasks/importJira.js';
 import type { Task } from '../core/trace/tasks/model.js';
 import { scaffoldTest } from '../core/trace/scaffoldTest.js';
 import { writeRequirementsFolder } from '../core/trace/requirements/folder.js';
@@ -588,6 +589,29 @@ server.registerTool(
       return {
         content: [{ type: 'text' as const, text: `${note}Board → ${relative(baseDir, out) || '.'} (${sum.total} task(s) · ${sum.done} done · ${sum.drift} ⚠️ drift)\n\n${md}` }],
         structuredContent: { path: relative(baseDir, out), total: sum.total, done: sum.done, drift: sum.drift } as unknown as Record<string, unknown>,
+      };
+    } catch (err) {
+      return errorResult(err);
+    }
+  },
+);
+
+server.registerTool(
+  'task_import',
+  {
+    title: 'Import Jira issues as read-only tasks',
+    description:
+      'Pull issues under tasks.jira.epic into .acp/tasks (source: jira) — requires tasks.mode: "jira". ' +
+      'Idempotent: overwrites the cache and prunes issues no longer in the epic; local tasks untouched.',
+    inputSchema: { configPath: z.string().optional() },
+  },
+  async (args) => {
+    try {
+      const { baseDir, config } = taskCtx(args.configPath);
+      const r = await importJiraTasks(baseDir, config);
+      return {
+        content: [{ type: 'text' as const, text: `Imported ${r.imported.length} Jira issue(s)${r.pruned.length ? `, pruned ${r.pruned.length} stale` : ''}.` }],
+        structuredContent: r as unknown as Record<string, unknown>,
       };
     } catch (err) {
       return errorResult(err);
