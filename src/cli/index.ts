@@ -237,7 +237,7 @@ program
         return;
       }
       const outRel = relative(baseDir, r.outDir) || '.';
-      process.stdout.write(`        ${r.tasks.length} task(s), ${r.scaffolded.length} test stub(s) → ${outRel}/\n`);
+      process.stdout.write(`        ${r.tasks.length} task(s), ${r.scaffolded.length} test stub(s) → ${outRel}/  ·  ${r.nativeTasks.length} board task(s)\n`);
 
       if (opts.publishConfluence) {
         const res = await publishConfluence({ pageMarkdown: read(join(r.outDir, 'technical-analysis.md')) });
@@ -277,9 +277,10 @@ program
         process.stdout.write(`\n  Open the form, collect answers, then:  katastasi analyze --answers <answers>.md\n  (form: ${r.questionsHtml})\n`);
         return;
       }
-      process.stdout.write(`  Wrote ${r.files.length} file(s) → ${outRel}/  ·  ${r.tasks.length} task(s)  ·  ${r.scaffolded.length} test stub(s)\n`);
+      process.stdout.write(`  Wrote ${r.files.length} file(s) → ${outRel}/  ·  ${r.tasks.length} task(s)  ·  ${r.scaffolded.length} test stub(s)  ·  ${r.nativeTasks.length} board task(s)\n`);
       r.files.forEach((f) => process.stdout.write(`    + ${f}\n`));
       r.scaffolded.forEach((f) => process.stdout.write(`    + ${f} (test stub)\n`));
+      if (r.nativeTasks.length) process.stdout.write(`    + .acp/tasks: ${r.nativeTasks.join(', ')}\n`);
 
       if (opts.publishConfluence) {
         const res = await publishConfluence({ pageMarkdown: read(join(r.outDir, 'technical-analysis.md')) });

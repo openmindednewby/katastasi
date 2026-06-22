@@ -8,6 +8,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { resolveStoreDir } from '../trace/store.js';
+import { createTasksFromAnalyze } from '../trace/tasks/fromAnalyze.js';
 import type { TraceConfig } from '../trace/config.js';
 import { gatherRequirements } from '../trace/index.js';
 import { globFiles } from '../trace/glob.js';
@@ -36,6 +37,8 @@ export interface AnalyzeResult {
   files: string[];
   tasks: AnalyzeTask[];
   scaffolded: string[];
+  /** Native `.acp/tasks` ids created from the stories (local mode; empty otherwise). */
+  nativeTasks: string[];
   /** 'ask' (produced an open-questions form) or 'full' (produced the tech docs + tasks). */
   mode: 'ask' | 'full';
   /** In ask mode, the path of the generated interactive form. */
@@ -53,6 +56,8 @@ export interface AnalyzeOptions {
   maxContextBytes?: number;
   /** Scaffold the per-task test stubs into the repo (default true). */
   scaffold?: boolean;
+  /** Create native `.acp/tasks` from the stories (default true; local mode only). */
+  writeTasks?: boolean;
   /** Ask mode: produce an open-questions form (decisions to resolve) instead of the final docs. */
   ask?: boolean;
   /** Full mode: stakeholder answers (markdown) to incorporate into the analysis. */
@@ -210,7 +215,7 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
     const { html } = generateQuestions(ask.openQuestionsMarkdown, { mermaid: 'cdn', outPath: join(outDir, 'open-questions.html') });
     writeFileSync(join(outDir, 'open-questions.html'), html, 'utf8');
     files.push(join(outDirRel, 'open-questions.html'));
-    return { outDir, files, tasks: [], scaffolded: [], mode: 'ask', questionsHtml: join(outDirRel, 'open-questions.html') };
+    return { outDir, files, tasks: [], scaffolded: [], nativeTasks: [], mode: 'ask', questionsHtml: join(outDirRel, 'open-questions.html') };
   }
 
   // ── FULL mode: produce the tech docs + tasks (+ stakeholder answers if supplied) ──
@@ -240,5 +245,9 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
       }
     }
   }
-  return { outDir, files, tasks: out.tasks, scaffolded, mode: 'full' };
+  // Populate the native task board from the generated stories (local mode; deduped).
+  const nativeTasks =
+    opts.writeTasks === false ? [] : createTasksFromAnalyze(baseDir, config, out.tasks.map((t) => ({ key: t.key, title: t.title })));
+
+  return { outDir, files, tasks: out.tasks, scaffolded, nativeTasks, mode: 'full' };
 }
