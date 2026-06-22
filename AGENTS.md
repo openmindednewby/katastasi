@@ -36,6 +36,13 @@ The core conversion + REST logic lives in `src/core/` and is plain TypeScript wi
   button (`acp trace serve`). Trigger from CLI/CI, the portal, an agent (MCP `requirements_trace`), or
   an n8n webhook (`POST /run`). Onboard with `acp trace init` (autodetect). See
   [docs/TRACEABILITY.md](docs/TRACEABILITY.md).
+- **Acceptance tests** — a requirement-first runner (`katastasi test`): HTTP/REST + CLI cases authored as
+  `.acp/tests/*.acp.{json,yml,md}` spec files or inline ` ```acp-test ` blocks (terse or JSON) under a
+  requirement, with status/JSON-path/header/body assertions, capture-chaining, and env secrets. Emits
+  JUnit keyed by requirement → `trace` verifies it. `analyze` generates the specs; agents call MCP
+  `test_run`. See [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
+- **Tasks** — local markdown task tracking (`katastasi task …`) linked to requirements + tests, with a
+  done-but-not-verified ⚠️ drift check. See [docs/PHASE-1-DESIGN.md](docs/PHASE-1-DESIGN.md).
 
 ## Repo map
 

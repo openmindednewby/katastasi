@@ -1,6 +1,6 @@
 {
   "name": "katastasi",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Katastasi — open-source documentation, task-tracking, and testing framework. Local-first markdown source of truth; agent-native (MCP); syncs to Jira/Confluence/issues/CI. Answers: what is the real status — is this actually done and verified?",
   "license": "MIT",
   "type": "module",

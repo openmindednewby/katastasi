@@ -66,7 +66,7 @@ const program = new Command();
 program
   .name('katastasi')
   .description('Katastasi — documentation, task-tracking & testing framework. Local-first markdown; syncs to Jira/Confluence/issues/CI. (aliases: kat, acp)')
-  .version('0.3.0');
+  .version('0.4.0');
 
 program
   .command('jira')

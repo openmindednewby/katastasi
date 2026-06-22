@@ -85,11 +85,14 @@ local` is full; `mode: jira` imports read-only; `hybrid` lands in Phase 3. **Ful
 **Done when:** a team can track tasks entirely in local markdown (or read-only from Jira) and the drift
 flag fires when "done" isn't proven.
 
-### Phase 2 — Acceptance test runner (HTTP first) ← *next; scoped in [docs/PHASE-2-DESIGN.md](docs/PHASE-2-DESIGN.md)*
-`katastasi test` executes acceptance criteria (HTTP/REST: call → assert status/body/headers), inline +
-spec files, results auto-feeding `trace`. `analyze` generates them; `trace` verifies them.
+### Phase 2 — Acceptance test runner (HTTP + CLI) ✅ *(shipped 0.4.0)*
+`katastasi test` executes acceptance cases — **HTTP/REST** (call → assert status/JSON-path/headers/body,
+with capture-chaining) **and CLI/process** (run → assert exit/stdout) — authored as spec files
+(JSON / YAML-lite / markdown-table) **or** inline ` ```acp-test ` blocks (terse or JSON) under a
+requirement. Results emit as JUnit keyed by requirement and auto-feed `trace`; `analyze` generates the
+specs; the MCP `test_run` tool drives it. **Full guide: [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).**
 **Done when:** an AI-generated requirement ships with an executable criterion that flips it to ✅ on pass.
-*Then extend:* CLI/process targets → link units (Jest/pytest/xUnit) → link Playwright.
+*Phase 2.2 (later):* *link* units (Jest/pytest/xUnit) → *link* Playwright (don't rebuild).
 
 ### Phase 3 — Bidirectional sync (incremental)
 Hybrid engine across Jira + Confluence + GitHub/GitLab issues. **v1** one-way + conflict-flag, **v2**
@@ -118,6 +121,7 @@ analyze` (AI gap analysis → tech doc + Jira tasks + scaffolded tagged tests, w
 `acp pipeline` (one-command BA→dev flow); company-agnostic sources (Jira/Confluence/GitHub/GitLab/
 markdown/command) and sinks (files/post/collector).
 
-Maturity vs. the vision: Documentation ~80% · Testing (as orchestration) ~75% · AI-agent ~80% ·
-Confluence/Jira ~85/80% · **Task tracking ~35%** · **Distribution ~40%** · Local-only-markdown ~55%.
-Phases 0–3 target exactly those gaps.
+Maturity vs. the vision (after Phases 0–2): Documentation ~80% · Testing **~90%** (orchestration + a
+native HTTP/CLI acceptance runner) · AI-agent ~85% · Confluence/Jira ~85/80% · **Task tracking ~80%** ·
+**Distribution ~90%** (npm + Docker + GitHub Action) · Local-only-markdown ~70%. Phase 3 (bidirectional
+sync) targets the remaining gap.

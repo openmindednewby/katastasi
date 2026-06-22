@@ -162,6 +162,24 @@ run and serves an aggregated multi-project dashboard (server of record, no Jira 
 The portal exposes `GET /` (dashboard), `GET /api/report`, `GET /api/runs`, and `POST /run`
 (`?run=1` executes suites, `?publish=1` updates Confluence) — so n8n/CI/agents can trigger runs too.
 
+### Acceptance tests (`katastasi test`)
+
+Run requirement-first acceptance cases (HTTP + CLI) and write JUnit results that `trace` ingests
+(full guide: [ACCEPTANCE.md](ACCEPTANCE.md)).
+
+```bash
+katastasi test                          # run .acp/tests/*.acp.{json,yml,md} + inline ```acp-test blocks
+katastasi test --req PROJ-1             # only this requirement
+katastasi test --base-url http://stg    # override runner.baseUrl
+katastasi test --specs "api/**/*.acp.json"   # override the spec globs
+katastasi test --out results/acc.xml    # JUnit output path
+katastasi trace                         # fold results into per-requirement status
+```
+
+`katastasi test` flags: `--config`, `--req`, `--base-url`, `--specs <globs...>`, `--out`,
+`--fail-on none|fail` (default `fail`). Runner `baseUrl`/`headers`/`setup` come from the config `runner`
+block; secrets are read from env via `{{env.NAME}}`.
+
 ## MCP server (for Claude / agents)
 
 The server exposes two tools that take **raw markdown strings** (what an agent has in memory):
@@ -177,7 +195,7 @@ The server exposes two tools that take **raw markdown strings** (what an agent h
 | `scaffold_test` | **Agent loop.** Write a framework-correct, key-tagged test stub for a requirement. Args: `key`, `configPath?`, `tech?`, `title?`. Pull ticket → scaffold → implement → trace. |
 | `requirement_status` | **Agent loop.** One requirement's current state (verified/failing/…+drift/stale/tests). Args: `key`, `configPath?`. The quick "is KEY done?" check. |
 | `pull_requirements` | **BA pipeline.** Gather requirements from all configured sources into one local folder + manifest. Args: `configPath?`, `dir?`, `force?`. |
-| `analyze` | **BA pipeline.** AI gap analysis → technical-analysis page + Jira tasks + scaffolded tagged tests (local; publish with `markdown_to_*`). Args: `configPath?`, `out?`, `scaffold?`. |
+| `analyze` | **BA pipeline.** AI gap analysis → technical-analysis page + Jira tasks + scaffolded tagged tests + **executable acceptance specs** (`.acp/tests/<KEY>.acp.json`, run via `test_run`). Args: `configPath?`, `out?`, `scaffold?`. |
 | `task_add` / `task_list` / `task_set_status` / `task_link` / `task_board` | **Tasks.** Manage local `.acp/tasks` (link to requirements, set status, render the board). `task_list {drift:true}` cross-checks done tasks. |
 | `task_import` | **Tasks.** Import Jira issues read-only into `.acp/tasks` (requires `tasks.mode: jira`). |
 
@@ -185,6 +203,7 @@ The server exposes two tools that take **raw markdown strings** (what an agent h
 **[AGENT_PROMPT.md](AGENT_PROMPT.md)** (implement-a-ticket-with-verification; requirements → use cases
 as a mermaid flow → unit + e2e tests → trace).
 | `requirements_trace` | **Traceability.** Build the RTM from an `acp-trace.json`: which requirements are verified / failing / unverified / specified + drift + orphan tests + regressions vs the last run, at the current git commit. Args: `configPath?`, `format?` (`markdown`\|`json`), `run?` (re-run the suites first). Returns the report + structured stats. |
+| `test_run` | **Acceptance.** Run requirement-first acceptance tests (HTTP + CLI) from `.acp/tests` specs + inline ` ```acp-test ` blocks, write JUnit keyed by requirement (then call `requirements_trace` to flip verified). Args: `configPath?`, `req?`, `baseUrl?`, `out?`. Returns per-case pass/fail + the results path. |
 
 ### Register in Claude Code
 

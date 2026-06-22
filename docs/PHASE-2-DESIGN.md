@@ -1,7 +1,11 @@
-# Phase 2 — Requirement-first acceptance test runner (HTTP-first)
+# Phase 2 — Requirement-first acceptance test runner (HTTP + CLI)
+
+> **✅ SHIPPED in 0.4.0 (2026-06-22).** Built broad per the owner's build-start decisions (§2.5): all
+> spec formats, both inline forms, all four assertions, HTTP **and** CLI/process in v1. User-facing
+> reference: **[ACCEPTANCE.md](ACCEPTANCE.md)**. This doc is kept as the design record.
 
 *Scope drafted 2026-06-22. The third pillar: requirements that verify **themselves**. Implements the
-test-runner decision from [VISION.md](../VISION.md). **Open questions in §6 are resolved at build-start.***
+test-runner decision from [VISION.md](../VISION.md).*
 
 ## 1. Goal
 

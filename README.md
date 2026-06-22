@@ -29,7 +29,7 @@ roadmap.
 |---|---|
 | **📄 Documentation** | Markdown ⇄ Confluence/Jira, both ways, round-trippable, mermaid preserved. Interactive decision docs (`katastasi questions`). Optional AI-authored technical analysis. |
 | **✅ Task tracking** | A local, markdown task model (`.acp/tasks`) linked to requirements and tests, usable standalone **or** imported read-only from Jira. A task marked *done* whose requirements aren't verified is flagged ⚠️ — "is done really done?" at the task level. |
-| **🧪 Testing** | Links **and** runs your existing suites (Playwright/Jest/Vitest/node/xUnit) and joins them to requirements at the git commit → a true, per-requirement status with regression detection. |
+| **🧪 Testing** | Links **and** runs your existing suites (Playwright/Jest/Vitest/node/xUnit), **plus a built-in requirement-first acceptance runner** (`katastasi test` — HTTP + CLI) — all joined to requirements at the git commit → a true, per-requirement status with regression detection. |
 
 ## Install
 
@@ -97,6 +97,34 @@ Statuses are configurable (`tasks.statuses`); IDs are global `TASK-<n>` or per-s
 its generated stories straight onto the board. Agents drive it all via the `task_*` MCP tools. Full
 design: **[docs/PHASE-1-DESIGN.md](docs/PHASE-1-DESIGN.md)**.
 
+## Acceptance testing (requirements that verify themselves)
+
+Attach an **executable acceptance test** to a requirement and `katastasi test` runs it — HTTP/REST calls
+(or CLI commands) with assertions — then writes JUnit results keyed by requirement, so `trace` flips the
+requirement to **✅ verified** on pass (and clears any task drift). Existing Jest/Playwright suites keep
+being *linked*, not replaced.
+
+```bash
+katastasi test                       # run .acp/tests specs + inline ```acp-test blocks → JUnit
+katastasi test --req PROJ-1          # just one requirement
+katastasi trace                      # fold the results into per-requirement status
+```
+
+Author them three ways — a spec file (`.acp/tests/PROJ-1.acp.json` / `.acp.yml` / a markdown table),
+or **inline** under a requirement, terse or JSON:
+
+````markdown
+## PROJ-1 — Login
+```acp-test
+POST /login {"user":"x","pass":"bad"} -> 401
+```
+````
+
+Steps assert status / JSON-path / header / body-contains, **capture** variables to chain (login → token →
+reuse), and read secrets from env via `{{env.NAME}}`. `baseUrl`, default headers, and a one-time login
+`setup` live in the config `runner` block. `katastasi analyze` generates these specs straight from the
+requirements. Agents drive it via the `test_run` MCP tool. Full guide: **[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)**.
+
 ## Integrations
 
 - **AI agents (MCP):** this repo *is* an MCP server (`katastasi-mcp`). Agents call `requirements_trace`,
@@ -137,8 +165,8 @@ Katastasi is built MVP-first — a releasable phase every 1–2 weeks. Full deta
 
 - **Phase 0 ✅** — Rebrand & distribution: rename, npm + Docker + GitHub Action (0.2.0).
 - **Phase 1 ✅** — unified `.acp/` model + switchable local/Jira/hybrid **task tracking** (shipped 0.3.0).
-- **Phase 2** *(next)* — requirement-first **acceptance test runner** (HTTP first). See [docs/PHASE-2-DESIGN.md](docs/PHASE-2-DESIGN.md).
-- **Phase 3 —** **bidirectional sync** (git-backed, incremental and safe).
+- **Phase 2 ✅** — requirement-first **acceptance test runner** (HTTP + CLI; shipped 0.4.0). See [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
+- **Phase 3** *(next)* — **bidirectional sync** (git-backed, incremental and safe).
 - **Phase 4 —** breadth (pytest/go/cypress, more CI) & polish.
 
 ## Free & paid
