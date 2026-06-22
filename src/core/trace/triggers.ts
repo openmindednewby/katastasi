@@ -12,6 +12,7 @@ import { isAbsolute, resolve } from 'node:path';
 import type { TestSourceConfig, TraceConfig } from './config.js';
 import { deriveState, recomputeStats } from './computeState.js';
 import { globFiles } from './glob.js';
+import { resolveStoreDir } from './store.js';
 import { pruneRuns, saveRun } from './history.js';
 import { ingestResults } from './results.js';
 import { runCommandStream } from './runner.js';
@@ -110,7 +111,9 @@ export async function runRequirement(config: TraceConfig, baseDir: string, key: 
     }
   }
   if (config.history) {
-    const dir = isAbsolute(config.history.dir) ? config.history.dir : resolve(baseDir, config.history.dir);
+    const dir = config.history.dir
+      ? (isAbsolute(config.history.dir) ? config.history.dir : resolve(baseDir, config.history.dir))
+      : resolveStoreDir(baseDir, 'runs');
     saveRun(report, dir);
     if (config.history.keep) pruneRuns(dir, config.history.keep);
   }
