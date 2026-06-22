@@ -85,7 +85,7 @@ local` is full; `mode: jira` imports read-only; `hybrid` lands in Phase 3. **Ful
 **Done when:** a team can track tasks entirely in local markdown (or read-only from Jira) and the drift
 flag fires when "done" isn't proven.
 
-### Phase 2 — Acceptance test runner (HTTP first)
+### Phase 2 — Acceptance test runner (HTTP first) ← *next; scoped in [docs/PHASE-2-DESIGN.md](docs/PHASE-2-DESIGN.md)*
 `katastasi test` executes acceptance criteria (HTTP/REST: call → assert status/body/headers), inline +
 spec files, results auto-feeding `trace`. `analyze` generates them; `trace` verifies them.
 **Done when:** an AI-generated requirement ships with an executable criterion that flips it to ✅ on pass.

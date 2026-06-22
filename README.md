@@ -135,9 +135,9 @@ Full reference: **[docs/WORKFLOWS.md](docs/WORKFLOWS.md)** · **[docs/CLI_SETUP.
 
 Katastasi is built MVP-first — a releasable phase every 1–2 weeks. Full detail in **[VISION.md](VISION.md)**.
 
-- **Phase 0 — Rebrand & distribution** *(this release)*: rename, npm + Docker + GitHub Action, README re-led.
-- **Phase 1 —** unified `.acp/` model + switchable local/Jira/hybrid **task tracking**.
-- **Phase 2 —** requirement-first **acceptance test runner** (HTTP first).
+- **Phase 0 ✅** — Rebrand & distribution: rename, npm + Docker + GitHub Action (0.2.0).
+- **Phase 1 ✅** — unified `.acp/` model + switchable local/Jira/hybrid **task tracking** (shipped 0.3.0).
+- **Phase 2** *(next)* — requirement-first **acceptance test runner** (HTTP first). See [docs/PHASE-2-DESIGN.md](docs/PHASE-2-DESIGN.md).
 - **Phase 3 —** **bidirectional sync** (git-backed, incremental and safe).
 - **Phase 4 —** breadth (pytest/go/cypress, more CI) & polish.
 
