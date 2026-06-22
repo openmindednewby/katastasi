@@ -7,6 +7,7 @@
  * The requirement key comes from the block's own `req` (JSON) or the enclosing requirement (`reqKey`).
  */
 import { AcceptanceParseError, normalizeSpec, type AcceptanceSpec } from '../model.js';
+import { DEFAULT_KEY_PATTERN } from '../../testScanner.js';
 
 const BLOCK_PATTERN = '```+[ \\t]*acp-test\\b[^\\n]*\\n([\\s\\S]*?)```+';
 
@@ -86,15 +87,54 @@ function fromTerse(content: string, source: string, reqKey?: string): Acceptance
   return [normalizeSpec({ req: reqKey, cases }, source)];
 }
 
-/** Extract every ` ```acp-test ` block from a requirement markdown string. */
+/** Normalise one block's content (JSON or terse) against an optional enclosing requirement key. */
+export function parseBlockContent(content: string, reqKey: string | undefined, source: string): AcceptanceSpec[] {
+  return looksJson(content) ? fromJson(content, source, reqKey) : fromTerse(content, source, reqKey);
+}
+
+/** Extract every ` ```acp-test ` block from a requirement markdown string (single known key). */
 export function parseInlineBlocks(markdown: string, reqKey?: string, source = 'inline'): AcceptanceSpec[] {
   const out: AcceptanceSpec[] = [];
   let blockIdx = 0;
   const re = new RegExp(BLOCK_PATTERN, 'g'); // fresh per call — a shared /g regex keeps stale lastIndex
   for (let m = re.exec(markdown); m; m = re.exec(markdown)) {
-    const content = m[1];
-    const src = `${source}:${reqKey ?? '?'}#${++blockIdx}`;
-    out.push(...(looksJson(content) ? fromJson(content, src, reqKey) : fromTerse(content, src, reqKey)));
+    out.push(...parseBlockContent(m[1], reqKey, `${source}:${reqKey ?? '?'}#${++blockIdx}`));
+  }
+  return out;
+}
+
+/**
+ * Extract acp-test blocks from a whole requirements document, attributing each block to the nearest
+ * preceding requirement key (a line containing `keyPattern`, e.g. a `## PROJ-1 …` heading). A block's
+ * own JSON `req` still overrides. This is how a requirement "verifies itself" — author the test under it.
+ */
+export function parseInlineFromDoc(markdown: string, keyPattern: string = DEFAULT_KEY_PATTERN, source = 'inline'): AcceptanceSpec[] {
+  const keyRe = new RegExp(keyPattern);
+  const fenceOpen = /^```+[ \t]*acp-test\b/;
+  const fenceClose = /^```+[ \t]*$/;
+  const out: AcceptanceSpec[] = [];
+  let currentKey: string | undefined;
+  let inBlock = false;
+  let buf: string[] = [];
+  let blockKey: string | undefined;
+  let blockIdx = 0;
+
+  for (const line of markdown.split(/\r?\n/)) {
+    if (inBlock) {
+      if (fenceClose.test(line)) {
+        inBlock = false;
+        out.push(...parseBlockContent(buf.join('\n'), blockKey, `${source}:${blockKey ?? '?'}#${++blockIdx}`));
+      } else buf.push(line);
+      continue;
+    }
+    if (fenceOpen.test(line)) {
+      inBlock = true;
+      buf = [];
+      blockKey = currentKey;
+      continue;
+    }
+    const km = keyRe.exec(line);
+    if (km) currentKey = km[0].toUpperCase();
   }
   return out;
 }

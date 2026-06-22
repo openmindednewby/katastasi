@@ -29,6 +29,7 @@ import { reportForTasks } from '../core/trace/tasks/report.js';
 import { importJiraTasks } from '../core/trace/tasks/importJira.js';
 import type { TaskVerification } from '../core/trace/tasks/verify.js';
 import type { Task } from '../core/trace/tasks/model.js';
+import { runAcceptance } from '../core/trace/acceptance/orchestrate.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -537,6 +538,45 @@ program
       process.stdout.write(`  ${data.questions.length} question(s) (${branched} branched), ${data.edges.length} edges, mermaid=${mermaid}\n`);
       process.stdout.write(unmapped.length ? `  ⚠️  unmapped: ${unmapped.map((n) => `Q${n}`).join(', ')}\n` : '  all questions mapped to a node\n');
       process.stdout.write('  Answer in a browser, Export .md, then publish:  acp confluence --page <answers>.md\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+program
+  .command('test')
+  .description('Run requirement-first acceptance tests (HTTP + CLI) and write JUnit results for trace.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--req <key>', 'run only the cases for this requirement key')
+  .option('--base-url <url>', 'override runner.baseUrl')
+  .option('--specs <globs...>', 'override the spec-file globs to gather')
+  .option('--out <path>', 'JUnit output path (relative to repoDir)')
+  .option('--fail-on <level>', 'exit non-zero on: none | fail', 'fail')
+  .action(async (opts) => {
+    try {
+      const configPath = resolve(opts.config);
+      const baseDir = dirname(configPath);
+      const config = loadTraceConfig(configPath);
+      process.stdout.write(`\n  Running acceptance tests (config: ${opts.config})${opts.req ? `  [${opts.req}]` : ''}\n`);
+
+      const summary = await runAcceptance(baseDir, config, {
+        req: opts.req,
+        baseUrl: opts.baseUrl,
+        specGlobs: opts.specs,
+        out: opts.out,
+      });
+
+      if (summary.total === 0) {
+        process.stdout.write('  No acceptance cases found (add .acp/tests specs or inline ```acp-test blocks).\n');
+      } else {
+        for (const c of summary.cases) {
+          const mark = c.ok ? '✓' : '✗';
+          process.stdout.write(`  ${mark} ${c.req}  ${c.name}${c.ok ? '' : `  — ${c.failure ?? 'failed'}`}\n`);
+        }
+        process.stdout.write(`\n  ${summary.passed}/${summary.total} passed · results → ${summary.outPath}\n`);
+      }
+
+      process.exit(opts.failOn === 'fail' && summary.failed > 0 ? 1 : 0);
     } catch (err) {
       fail(err);
     }

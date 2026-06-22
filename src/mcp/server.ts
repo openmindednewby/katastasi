@@ -20,6 +20,7 @@ import { pullJira, pullConfluence } from '../core/pull.js';
 import { pushFolder } from '../core/push.js';
 import { loadTraceConfig } from '../core/trace/config.js';
 import { runTrace, renderAll, requirementStatus, gatherRequirements } from '../core/trace/index.js';
+import { runAcceptance } from '../core/trace/acceptance/orchestrate.js';
 import { resolveStoreDir } from '../core/trace/store.js';
 import { resolveTasksConfig } from '../core/trace/config.js';
 import { addTask, listTasksFiltered, getTask, setTaskStatus, linkTask } from '../core/trace/tasks/ops.js';
@@ -252,6 +253,46 @@ server.registerTool(
       return {
         content: [{ type: 'text' as const, text }],
         structuredContent: report as unknown as Record<string, unknown>,
+      };
+    } catch (err) {
+      return errorResult(err);
+    }
+  },
+);
+
+server.registerTool(
+  'test_run',
+  {
+    title: 'Run requirement-first acceptance tests (HTTP + CLI)',
+    description:
+      'Execute acceptance tests authored as `.acp/tests/*.acp.{json,yml,md}` spec files and inline ' +
+      '```acp-test blocks in markdown requirements, then write JUnit results keyed by requirement so ' +
+      'a subsequent requirements_trace flips each passing requirement to ✅ verified (and clears task ' +
+      'drift). Steps are HTTP requests (status / JSON-path / header / body assertions, with capture for ' +
+      'chaining) or `run` CLI commands; baseUrl/headers/login come from the config `runner` block, with ' +
+      'secrets supplied via {{env.NAME}}. Returns per-case pass/fail + the results path.',
+    inputSchema: {
+      configPath: z.string().optional().describe('Path to acp-trace.json (default: ./acp-trace.json).'),
+      req: z.string().optional().describe('Run only the cases for this requirement key.'),
+      baseUrl: z.string().optional().describe('Override runner.baseUrl.'),
+      out: z.string().optional().describe('JUnit output path (relative to repoDir).'),
+    },
+  },
+  async (args) => {
+    try {
+      const configPath = resolve(args.configPath ?? 'acp-trace.json');
+      const config = loadTraceConfig(configPath);
+      const summary = await runAcceptance(dirname(configPath), config, { req: args.req, baseUrl: args.baseUrl, out: args.out });
+      const lines = summary.total === 0
+        ? ['No acceptance cases found (add .acp/tests specs or inline ```acp-test blocks).']
+        : [
+            ...summary.cases.map((c) => `${c.ok ? '✓' : '✗'} ${c.req}  ${c.name}${c.ok ? '' : `  — ${c.failure ?? 'failed'}`}`),
+            `${summary.passed}/${summary.total} passed · results → ${summary.outPath}`,
+            'Run requirements_trace to fold these into requirement status.',
+          ];
+      return {
+        content: [{ type: 'text' as const, text: lines.join('\n') }],
+        structuredContent: { passed: summary.passed, failed: summary.failed, total: summary.total, outPath: summary.outPath, specCount: summary.specCount },
       };
     } catch (err) {
       return errorResult(err);
