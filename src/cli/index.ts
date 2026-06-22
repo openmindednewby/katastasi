@@ -21,6 +21,13 @@ import { runTrace, requirementStatus, gatherRequirements } from '../core/trace/i
 import { writeRequirementsFolder } from '../core/trace/requirements/folder.js';
 import { analyze } from '../core/analyze/analyze.js';
 import { resolveStoreDir, migrateStore } from '../core/trace/store.js';
+import { resolveTasksConfig } from '../core/trace/config.js';
+import { addTask, listTasksFiltered, getTask, setTaskStatus, linkTask } from '../core/trace/tasks/ops.js';
+import { verifyTasks, summarizeDrift } from '../core/trace/tasks/verify.js';
+import { renderBoard, boardPath } from '../core/trace/tasks/board.js';
+import { reportForTasks } from '../core/trace/tasks/report.js';
+import type { TaskVerification } from '../core/trace/tasks/verify.js';
+import type { Task } from '../core/trace/tasks/model.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -285,6 +292,191 @@ program
       if (!opts.publishConfluence && !opts.publishJira) {
         process.stdout.write(`  Publish:  katastasi confluence --page ${outRel}/technical-analysis.md  ·  katastasi jira --epic ${outRel}/tasks/epic.md --task ${outRel}/tasks/*.md\n`);
       }
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+function taskCtx(configPath: string): { baseDir: string; config: ReturnType<typeof loadTraceConfig> } {
+  const p = resolve(configPath);
+  return { baseDir: dirname(p), config: loadTraceConfig(p) };
+}
+
+function printTaskRows(rows: Array<{ task: Task; drift?: boolean }>): void {
+  if (!rows.length) {
+    process.stdout.write('  (no tasks)\n');
+    return;
+  }
+  const idW = Math.max(2, ...rows.map((r) => r.task.id.length));
+  const stW = Math.max(6, ...rows.map((r) => r.task.status.length));
+  for (const { task, drift } of rows) {
+    const reqs = task.requirements.length ? `  · ${task.requirements.join(', ')}` : '';
+    process.stdout.write(`  ${task.id.padEnd(idW)}  ${task.status.padEnd(stW)}  ${task.title}${reqs}${drift ? ' ⚠️' : ''}\n`);
+  }
+}
+
+/** Build verifications for board/verify/list --drift; tolerates "no run yet" (drift off, board still renders). */
+async function verificationsFor(
+  baseDir: string,
+  config: ReturnType<typeof loadTraceConfig>,
+  tasks: Task[],
+  opts: { run?: boolean },
+): Promise<{ vs: TaskVerification[]; staleNote: string | null; hadReport: boolean }> {
+  const resolved = resolveTasksConfig(config);
+  const src = await reportForTasks(baseDir, config, { run: opts.run });
+  if (!src.report) {
+    const vs = tasks.map((t) => ({ task: t, done: resolved.doneStatuses.includes(t.status), drift: false, reason: null, requirements: [] }));
+    return { vs, staleNote: null, hadReport: false };
+  }
+  return { vs: verifyTasks(tasks, src.report, resolved), staleNote: src.staleNote, hadReport: true };
+}
+
+const taskCmd = program.command('task').description('Local task tracking (.acp/tasks): add / list / show / set / link / board / verify.');
+
+taskCmd
+  .command('add <title>')
+  .description('Create a task.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--req <keys...>', 'linked requirement key(s)')
+  .option('--test <refs...>', 'explicit test ref(s)')
+  .option('--status <status>', 'initial status (default: first configured)')
+  .option('--assignee <who>', 'assignee')
+  .option('--scope <name>', 'scope (uses its taskPrefix + subfolder if it sets one)')
+  .action((title, opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const t = addTask(baseDir, config, { title, requirements: opts.req, tests: opts.test, status: opts.status, assignee: opts.assignee, scope: opts.scope });
+      process.stdout.write(`\n  Created ${t.id} [${t.status}] ${t.title}${t.requirements.length ? `  · ${t.requirements.join(', ')}` : ''}\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+taskCmd
+  .command('list')
+  .description('List tasks (optionally cross-checked for drift).')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--status <status>', 'filter by status')
+  .option('--req <key>', 'filter by linked requirement')
+  .option('--drift', 'cross-check done tasks against the latest run', false)
+  .option('--run', 'refresh: re-run suites before the drift check', false)
+  .action(async (opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const tasks = listTasksFiltered(baseDir, config, { status: opts.status, req: opts.req });
+      process.stdout.write('\n');
+      if (!opts.drift) {
+        printTaskRows(tasks.map((t) => ({ task: t })));
+        return;
+      }
+      const { vs, staleNote, hadReport } = await verificationsFor(baseDir, config, tasks, { run: opts.run });
+      if (!hadReport) process.stdout.write('  (no trace run found — drift not computed; run `katastasi trace` or pass --run)\n');
+      if (staleNote) process.stdout.write(`  ⚠️ ${staleNote}\n`);
+      printTaskRows(vs.map((v) => ({ task: v.task, drift: v.drift })));
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+taskCmd
+  .command('show <id>')
+  .description('Show one task.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .action((id, opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const t = getTask(baseDir, config, id);
+      if (!t) {
+        fail(new Error(`Task not found: ${id}`));
+        return;
+      }
+      process.stdout.write(
+        `\n  ${t.id}  [${t.status}]  ${t.title}\n` +
+          `  requirements: ${t.requirements.join(', ') || '(none)'}\n` +
+          `  tests:        ${t.tests.join(', ') || '(derived via requirements)'}\n` +
+          `  assignee:     ${t.assignee ?? '(none)'}\n` +
+          `  source:       ${t.source}   created ${t.created}  ·  updated ${t.updated}\n` +
+          (t.body ? `\n${t.body}\n` : ''),
+      );
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+taskCmd
+  .command('set <id> <status>')
+  .description('Set a task’s status.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .action((id, status, opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const t = setTaskStatus(baseDir, config, id, status);
+      process.stdout.write(`\n  ${t.id} → [${t.status}]\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+taskCmd
+  .command('link <id>')
+  .description('Link a task to requirement(s) / test(s).')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--req <keys...>', 'requirement key(s) to add')
+  .option('--test <refs...>', 'test ref(s) to add')
+  .action((id, opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const t = linkTask(baseDir, config, id, { requirements: opts.req, tests: opts.test });
+      process.stdout.write(`\n  ${t.id} requirements: ${t.requirements.join(', ') || '(none)'}  ·  tests: ${t.tests.join(', ') || '(none)'}\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+taskCmd
+  .command('board')
+  .description('Render the markdown task board (with drift markers).')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--out <path>', 'output path (default: .acp/BOARD.md)')
+  .option('--run', 'refresh: re-run suites before the drift check', false)
+  .action(async (opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const tasks = listTasksFiltered(baseDir, config);
+      const { vs, staleNote } = await verificationsFor(baseDir, config, tasks, { run: opts.run });
+      if (staleNote) process.stdout.write(`\n  ⚠️ ${staleNote}\n`);
+      const md = renderBoard(vs, resolveTasksConfig(config), { title: config.project ? `${config.project} — Board` : 'Task Board' });
+      const out = opts.out ? resolve(baseDir, opts.out) : boardPath(baseDir);
+      mkdirSync(dirname(out), { recursive: true });
+      writeFileSync(out, md, 'utf8');
+      const sum = summarizeDrift(vs);
+      process.stdout.write(`  Board → ${relative(baseDir, out) || '.'}  (${sum.total} task(s) · ${sum.done} done · ${sum.drift} ⚠️ drift)\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+taskCmd
+  .command('verify')
+  .description('Cross-check done tasks against requirement verification (the honesty gate).')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--run', 'refresh: re-run suites first', false)
+  .option('--fail-on <what>', 'exit 1 on: drift')
+  .action(async (opts) => {
+    try {
+      const { baseDir, config } = taskCtx(opts.config);
+      const tasks = listTasksFiltered(baseDir, config);
+      const { vs, staleNote, hadReport } = await verificationsFor(baseDir, config, tasks, { run: opts.run });
+      process.stdout.write('\n');
+      if (!hadReport) {
+        process.stdout.write('  No trace run found — pass --run to compute, or run `katastasi trace` first.\n');
+        process.exit(opts.failOn === 'drift' ? 1 : 0);
+      }
+      if (staleNote) process.stdout.write(`  ⚠️ ${staleNote}\n`);
+      const sum = summarizeDrift(vs);
+      process.stdout.write(`  ${sum.total} task(s) · ${sum.done} done · ${sum.drift} ⚠️ drift\n`);
+      for (const v of sum.drifted) process.stdout.write(`    ⚠️ ${v.task.id} ${v.task.title} — ${v.reason}\n`);
+      process.exit(opts.failOn === 'drift' && sum.drift > 0 ? 1 : 0);
     } catch (err) {
       fail(err);
     }
