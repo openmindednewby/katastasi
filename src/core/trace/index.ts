@@ -21,6 +21,7 @@ import { execCommands, type CommandRun, type RunnableSpec } from './runner.js';
 import { applyDiff, loadBaseline, pruneRuns, saveRun } from './history.js';
 import { markStale } from './stale.js';
 import { markImplemented, scanCodeKeys } from './codeScan.js';
+import { resolveStoreDir } from './store.js';
 import { DEFAULT_KEY_PATTERN, readMappingFile, scanTestSources, type TestSourceSpec } from './testScanner.js';
 import { globFiles } from './glob.js';
 import type { Requirement, TestRef, TraceReport } from './types.js';
@@ -165,7 +166,8 @@ export async function runTraceDetailed(
 
   // 4. History: diff against the prior run, then persist this one.
   if (config.history) {
-    const historyDir = rel(baseDir, config.history.dir);
+    // Default the runs dir into the .acp/ store (legacy root runs/ still read if present).
+    const historyDir = config.history.dir ? rel(baseDir, config.history.dir) : resolveStoreDir(baseDir, 'runs');
     if (opts.compare !== false) {
       const prev = loadBaseline(historyDir, config.history.baseline);
       if (prev) applyDiff(report, prev);

@@ -12,7 +12,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, relative } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { publishJira } from '../core/jira.js';
 import { publishConfluence } from '../core/confluence.js';
@@ -20,6 +20,7 @@ import { pullJira, pullConfluence } from '../core/pull.js';
 import { pushFolder } from '../core/push.js';
 import { loadTraceConfig } from '../core/trace/config.js';
 import { runTrace, renderAll, requirementStatus, gatherRequirements } from '../core/trace/index.js';
+import { resolveStoreDir } from '../core/trace/store.js';
 import { scaffoldTest } from '../core/trace/scaffoldTest.js';
 import { writeRequirementsFolder } from '../core/trace/requirements/folder.js';
 import { analyze } from '../core/analyze/analyze.js';
@@ -367,10 +368,12 @@ server.registerTool(
       const baseDir = dirname(configPath);
       const config = loadTraceConfig(configPath);
       const reqs = await gatherRequirements(config, baseDir);
-      const out = writeRequirementsFolder(reqs, resolve(baseDir, args.dir ?? 'requirements'), args.force);
+      const dir = args.dir ? resolve(baseDir, args.dir) : resolveStoreDir(baseDir, 'requirements');
+      const dirRel = relative(baseDir, dir) || '.';
+      const out = writeRequirementsFolder(reqs, dir, args.force);
       return {
-        content: [{ type: 'text' as const, text: `Wrote ${out.files.length} requirement(s) to ${args.dir ?? 'requirements'}/ (+ manifest.json).` }],
-        structuredContent: { dir: args.dir ?? 'requirements', count: out.files.length, keys: out.files.map((f) => f.key) },
+        content: [{ type: 'text' as const, text: `Wrote ${out.files.length} requirement(s) to ${dirRel}/ (+ manifest.json).` }],
+        structuredContent: { dir: dirRel, count: out.files.length, keys: out.files.map((f) => f.key) },
       };
     } catch (err) {
       return errorResult(err);
@@ -406,7 +409,7 @@ server.registerTool(
         return { content: [{ type: 'text' as const, text: `Wrote an open-questions form: ${r.questionsHtml}. Share it, collect answers, then call analyze again with { answers }.` }], structuredContent: { mode: 'ask', files: r.files, questionsHtml: r.questionsHtml } };
       }
       const lines = [
-        `Wrote ${r.files.length} file(s) to ${args.out ?? 'tech-analysis'}/: gap-analysis.md, technical-analysis.md, tasks/`,
+        `Wrote ${r.files.length} file(s) to ${relative(dirname(configPath), r.outDir) || '.'}/: gap-analysis.md, technical-analysis.md, tasks/`,
         `${r.tasks.length} task(s): ${r.tasks.map((t) => t.key).join(', ')}`,
         `${r.scaffolded.length} test stub(s) scaffolded.`,
         'Publish with markdown_to_confluence (technical-analysis.md) + markdown_to_jira (tasks/).',

@@ -6,7 +6,7 @@
  * The agent-facing equivalent is the MCP server (src/mcp/server.ts), which takes raw markdown.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, resolve, join } from 'node:path';
+import { dirname, resolve, join, relative } from 'node:path';
 import { Command } from 'commander';
 import { publishJira } from '../core/jira.js';
 import { publishConfluence } from '../core/confluence.js';
@@ -20,6 +20,7 @@ import { scaffoldTest } from '../core/trace/scaffoldTest.js';
 import { runTrace, requirementStatus, gatherRequirements } from '../core/trace/index.js';
 import { writeRequirementsFolder } from '../core/trace/requirements/folder.js';
 import { analyze } from '../core/analyze/analyze.js';
+import { resolveStoreDir, migrateStore } from '../core/trace/store.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -193,8 +194,8 @@ program
   .command('pipeline')
   .description('Run the whole BA→dev pipeline in one go: gather requirements → gaps → analyze (→ tech docs + Jira tasks + tagged tests).')
   .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
-  .option('--reqs-dir <path>', 'requirements folder', 'requirements')
-  .option('--out <dir>', 'analysis output folder', 'tech-analysis')
+  .option('--reqs-dir <path>', 'requirements folder (default: .acp/requirements)')
+  .option('--out <dir>', 'analysis output folder (default: .acp/tech-analysis)')
   .option('--ask', 'stop after producing the open-questions form (resolve decisions first)', false)
   .option('--answers <file>', 'incorporate filled-in stakeholder answers (markdown)')
   .option('--no-scaffold', 'do not scaffold the per-task test stubs')
@@ -208,8 +209,9 @@ program
       const config = loadTraceConfig(configPath);
 
       process.stdout.write('\n  [1/3] Gathering requirements…\n');
-      const folder = writeRequirementsFolder(await gatherRequirements(config, baseDir), resolve(baseDir, opts.reqsDir), opts.force);
-      process.stdout.write(`        ${folder.files.length} requirement(s) → ${opts.reqsDir}/\n`);
+      const reqsDir = opts.reqsDir ? resolve(baseDir, opts.reqsDir) : resolveStoreDir(baseDir, 'requirements');
+      const folder = writeRequirementsFolder(await gatherRequirements(config, baseDir), reqsDir, opts.force);
+      process.stdout.write(`        ${folder.files.length} requirement(s) → ${relative(baseDir, reqsDir) || '.'}/\n`);
 
       process.stdout.write('  [2/3] Implementation gaps…\n');
       const report = await runTrace(config, baseDir, { save: false });
@@ -223,20 +225,21 @@ program
       const answers = opts.answers ? read(resolve(opts.answers)) : undefined;
       const r = await analyze(config, baseDir, { outDir: opts.out, scaffold: opts.scaffold, ask: opts.ask, answers });
       if (r.mode === 'ask') {
-        process.stdout.write(`\n  Open the form, collect answers, then:  acp pipeline --answers <answers>.md\n  (form: ${r.questionsHtml})\n`);
+        process.stdout.write(`\n  Open the form, collect answers, then:  katastasi pipeline --answers <answers>.md\n  (form: ${r.questionsHtml})\n`);
         return;
       }
-      process.stdout.write(`        ${r.tasks.length} task(s), ${r.scaffolded.length} test stub(s) → ${opts.out}/\n`);
+      const outRel = relative(baseDir, r.outDir) || '.';
+      process.stdout.write(`        ${r.tasks.length} task(s), ${r.scaffolded.length} test stub(s) → ${outRel}/\n`);
 
       if (opts.publishConfluence) {
-        const res = await publishConfluence({ pageMarkdown: read(join(baseDir, opts.out, 'technical-analysis.md')) });
+        const res = await publishConfluence({ pageMarkdown: read(join(r.outDir, 'technical-analysis.md')) });
         process.stdout.write(`  Confluence: ${res.page?.url ?? 'published'}\n`);
       }
       if (opts.publishJira) {
-        const taskMarkdowns = r.tasks.map((t) => read(join(baseDir, opts.out, 'tasks', `${t.key}.md`)));
-        printJiraResult(await publishJira({ epicMarkdown: read(join(baseDir, opts.out, 'tasks', 'epic.md')), taskMarkdowns }));
+        const taskMarkdowns = r.tasks.map((t) => read(join(r.outDir, 'tasks', `${t.key}.md`)));
+        printJiraResult(await publishJira({ epicMarkdown: read(join(r.outDir, 'tasks', 'epic.md')), taskMarkdowns }));
       }
-      process.stdout.write(`\n  Done. Implement against ${opts.out}/tasks/, then verify:  acp trace --run --fail-on regression\n`);
+      process.stdout.write(`\n  Done. Implement against ${outRel}/tasks/, then verify:  katastasi trace --run --fail-on regression\n`);
     } catch (err) {
       fail(err);
     }
@@ -246,7 +249,7 @@ program
   .command('analyze')
   .description('AI: requirements + codebase → gap analysis + technical-analysis (Confluence) + Jira tasks + scaffolded tests.')
   .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
-  .option('--out <dir>', 'output folder', 'tech-analysis')
+  .option('--out <dir>', 'output folder (default: .acp/tech-analysis)')
   .option('--ask', 'first pass: produce an open-questions form for the decisions to resolve', false)
   .option('--answers <file>', 'second pass: incorporate filled-in stakeholder answers (markdown)')
   .option('--no-scaffold', 'do not scaffold the per-task test stubs')
@@ -260,27 +263,48 @@ program
       const answers = opts.answers ? read(resolve(opts.answers)) : undefined;
       process.stdout.write(`\n  Analysing requirements vs codebase (AI)…${opts.ask ? '  [ask: surfacing open decisions]' : ''}\n`);
       const r = await analyze(config, baseDir, { outDir: opts.out, scaffold: opts.scaffold, ask: opts.ask, answers });
+      const outRel = relative(baseDir, r.outDir) || '.';
       if (r.mode === 'ask') {
         r.files.forEach((f) => process.stdout.write(`    + ${f}\n`));
-        process.stdout.write(`\n  Open the form, collect answers, then:  acp analyze --answers <answers>.md\n  (form: ${r.questionsHtml})\n`);
+        process.stdout.write(`\n  Open the form, collect answers, then:  katastasi analyze --answers <answers>.md\n  (form: ${r.questionsHtml})\n`);
         return;
       }
-      process.stdout.write(`  Wrote ${r.files.length} file(s) → ${opts.out}/  ·  ${r.tasks.length} task(s)  ·  ${r.scaffolded.length} test stub(s)\n`);
+      process.stdout.write(`  Wrote ${r.files.length} file(s) → ${outRel}/  ·  ${r.tasks.length} task(s)  ·  ${r.scaffolded.length} test stub(s)\n`);
       r.files.forEach((f) => process.stdout.write(`    + ${f}\n`));
       r.scaffolded.forEach((f) => process.stdout.write(`    + ${f} (test stub)\n`));
 
       if (opts.publishConfluence) {
-        const res = await publishConfluence({ pageMarkdown: read(join(baseDir, opts.out, 'technical-analysis.md')) });
+        const res = await publishConfluence({ pageMarkdown: read(join(r.outDir, 'technical-analysis.md')) });
         process.stdout.write(`  Confluence: ${res.page?.url ?? 'published'}\n`);
       }
       if (opts.publishJira) {
-        const epicMarkdown = read(join(baseDir, opts.out, 'tasks', 'epic.md'));
-        const taskMarkdowns = r.tasks.map((t) => read(join(baseDir, opts.out, 'tasks', `${t.key}.md`)));
+        const epicMarkdown = read(join(r.outDir, 'tasks', 'epic.md'));
+        const taskMarkdowns = r.tasks.map((t) => read(join(r.outDir, 'tasks', `${t.key}.md`)));
         printJiraResult(await publishJira({ epicMarkdown, taskMarkdowns }));
       }
       if (!opts.publishConfluence && !opts.publishJira) {
-        process.stdout.write(`  Publish:  acp confluence --page ${opts.out}/technical-analysis.md  ·  acp jira --epic ${opts.out}/tasks/epic.md --task ${opts.out}/tasks/*.md\n`);
+        process.stdout.write(`  Publish:  katastasi confluence --page ${outRel}/technical-analysis.md  ·  katastasi jira --epic ${outRel}/tasks/epic.md --task ${outRel}/tasks/*.md\n`);
       }
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+program
+  .command('migrate')
+  .description('Move legacy root store dirs (requirements/, runs/, tech-analysis/) into the tidy .acp/ store.')
+  .option('--config <path>', 'config file (locates the repo root)', DEFAULT_CONFIG_FILENAME)
+  .action((opts) => {
+    try {
+      const baseDir = dirname(resolve(opts.config));
+      const r = migrateStore(baseDir);
+      if (!r.moved.length && !r.skipped.length) {
+        process.stdout.write('\n  Nothing to migrate — no legacy root store dirs found.\n');
+        return;
+      }
+      process.stdout.write('\n  .acp/ store migration:\n');
+      r.moved.forEach((n) => process.stdout.write(`    moved   ${n}/ → .acp/${n}/\n`));
+      r.skipped.forEach((s) => process.stdout.write(`    skipped ${s}\n`));
     } catch (err) {
       fail(err);
     }
@@ -448,19 +472,21 @@ traceCmd
   .command('pull-requirements')
   .description('Gather requirements from ALL configured sources (Jira/Confluence/markdown/issues/command) into one local folder.')
   .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
-  .option('--dir <path>', 'output folder', 'requirements')
+  .option('--dir <path>', 'output folder (default: .acp/requirements)')
   .option('--force', 'overwrite an existing requirements folder', false)
   .action(async (opts) => {
     try {
       const configPath = resolve(opts.config);
       const baseDir = dirname(configPath);
       const config = loadTraceConfig(configPath);
+      const dir = opts.dir ? resolve(baseDir, opts.dir) : resolveStoreDir(baseDir, 'requirements');
+      const dirRel = relative(baseDir, dir) || '.';
       process.stdout.write(`\n  Gathering requirements (config: ${opts.config})\n`);
       const reqs = await gatherRequirements(config, baseDir);
-      const out = writeRequirementsFolder(reqs, resolve(baseDir, opts.dir), opts.force);
+      const out = writeRequirementsFolder(reqs, dir, opts.force);
       const bySource = out.files.reduce<Record<string, number>>((m, r) => ((m[r.source] = (m[r.source] ?? 0) + 1), m), {});
-      process.stdout.write(`  Wrote ${out.files.length} requirement(s) → ${opts.dir}/ (${Object.entries(bySource).map(([s, n]) => `${s}:${n}`).join(', ')})\n`);
-      process.stdout.write(`  Manifest: ${opts.dir}/manifest.json\n  Next: run the technical-analysis flow over this folder (see docs/AGENT_PROMPT.md).\n`);
+      process.stdout.write(`  Wrote ${out.files.length} requirement(s) → ${dirRel}/ (${Object.entries(bySource).map(([s, n]) => `${s}:${n}`).join(', ')})\n`);
+      process.stdout.write(`  Manifest: ${dirRel}/manifest.json\n  Next: run the technical-analysis flow over this folder (see docs/AGENT_PROMPT.md).\n`);
     } catch (err) {
       fail(err);
     }

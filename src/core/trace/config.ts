@@ -94,7 +94,7 @@ export const traceConfigSchema = z.object({
   tasks: tasksConfigSchema.optional(),
   /** Run history: where git-stamped snapshots are stored + an optional named baseline to diff against. */
   history: z
-    .object({ dir: z.string().default('runs'), baseline: z.string().optional(), keep: z.number().optional() })
+    .object({ dir: z.string().optional(), baseline: z.string().optional(), keep: z.number().optional() })
     .optional(),
   /** Built-in web portal (`acp trace serve`) settings. */
   portal: z.object({ port: z.number().default(8787) }).optional(),

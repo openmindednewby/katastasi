@@ -15,6 +15,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import type { TraceConfig } from './config.js';
 import { loadTraceConfig } from './config.js';
 import { listRuns, loadPreviousRun, loadRun } from './history.js';
+import { resolveStoreDir } from './store.js';
 import { runTrace } from './index.js';
 import { runRequirement, runSuite } from './triggers.js';
 import { publishConfluenceReport, postReport, stampJiraLabels, updateRoadmapSection, writeOutputs } from './publish.js';
@@ -73,7 +74,8 @@ function rel(baseDir: string, p: string): string {
 }
 
 function historyDirOf(config: TraceConfig, baseDir: string): string | null {
-  return config.history ? rel(baseDir, config.history.dir) : null;
+  if (!config.history) return null;
+  return config.history.dir ? rel(baseDir, config.history.dir) : resolveStoreDir(baseDir, 'runs');
 }
 
 function runsFor(historyDir: string | null): string[] {

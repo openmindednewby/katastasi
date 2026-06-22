@@ -6,7 +6,8 @@
  * knows exactly what to build and how to verify it. The AI call is injectable for deterministic tests.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { resolveStoreDir } from '../trace/store.js';
 import type { TraceConfig } from '../trace/config.js';
 import { gatherRequirements } from '../trace/index.js';
 import { globFiles } from '../trace/glob.js';
@@ -191,8 +192,9 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
   const codeGlobs = config.scopes.flatMap((s) => s.code ?? []);
   const codeFiles = codeGlobs.length ? globFiles(repoDir, codeGlobs).slice(0, opts.maxFiles ?? 200) : [];
   const { context } = collectCodeContext(repoDir, codeFiles, { maxTotalBytes: opts.maxContextBytes });
-  const outDirRel = opts.outDir ?? 'tech-analysis';
-  const outDir = resolve(baseDir, outDirRel);
+  // Default into the .acp/ store (legacy root tech-analysis/ still read if present).
+  const outDir = opts.outDir ? resolve(baseDir, opts.outDir) : resolveStoreDir(baseDir, 'tech-analysis');
+  const outDirRel = relative(baseDir, outDir) || '.';
   const files: string[] = [];
   const write = (rel: string, content: string) => {
     mkdirSync(dirname(join(outDir, rel)), { recursive: true });
