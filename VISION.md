@@ -76,10 +76,14 @@ Rename to Katastasi; README re-led around docs·tasks·tests; n8n demoted to opt
 GitLab/pre-commit templates, add semver + `CHANGELOG.md` + this `VISION.md`.
 **Done when:** `npx katastasi trace` works for a stranger; `docker run` works; CI integration is copy-paste.
 
-### Phase 1 — Unified `.acp/` model + switchable task tracking
-Define the `.acp/` canonical store and the req↔task↔test↔doc graph. Add native `katastasi task`
-commands + a markdown board. Implement `mode: local|jira|hybrid`.
-**Done when:** a team can track tasks entirely in local markdown, or point at Jira, by one config switch.
+### Phase 1 — Unified `.acp/` model + switchable task tracking ✅ *(shipped 0.3.0)*
+Define the `.acp/` canonical store (tidy hidden folder, back-compatible) and the req↔task↔test graph.
+Add native `katastasi task` commands + a markdown board + MCP tools, with a configurable status set and a
+**honesty cross-check** (a task marked *done* whose requirements aren't verified is flagged ⚠️). `mode:
+local` is full; `mode: jira` imports read-only; `hybrid` lands in Phase 3. **Full design:
+[docs/PHASE-1-DESIGN.md](docs/PHASE-1-DESIGN.md).**
+**Done when:** a team can track tasks entirely in local markdown (or read-only from Jira) and the drift
+flag fires when "done" isn't proven.
 
 ### Phase 2 — Acceptance test runner (HTTP first)
 `katastasi test` executes acceptance criteria (HTTP/REST: call → assert status/body/headers), inline +

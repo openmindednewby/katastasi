@@ -28,7 +28,7 @@ roadmap.
 | Pillar | What you get |
 |---|---|
 | **📄 Documentation** | Markdown ⇄ Confluence/Jira, both ways, round-trippable, mermaid preserved. Interactive decision docs (`katastasi questions`). Optional AI-authored technical analysis. |
-| **✅ Task tracking** | A local, markdown task model linked to requirements, tests, and docs — usable standalone **or** synced to Jira/GitHub. *(Native task model lands in Phase 1 — see [VISION.md](VISION.md).)* |
+| **✅ Task tracking** | A local, markdown task model (`.acp/tasks`) linked to requirements and tests, usable standalone **or** imported read-only from Jira. A task marked *done* whose requirements aren't verified is flagged ⚠️ — "is done really done?" at the task level. |
 | **🧪 Testing** | Links **and** runs your existing suites (Playwright/Jest/Vitest/node/xUnit) and joins them to requirements at the git commit → a true, per-requirement status with regression detection. |
 
 ## Install
@@ -80,6 +80,22 @@ katastasi pipeline --ask            # two-pass: open-questions form first, then 
 `katastasi analyze` (AI) produces a gap analysis, a Confluence-ready technical-analysis page, Jira tasks
 (acceptance criteria + use-case flow), and scaffolded tagged unit/e2e test stubs — local and/or
 published. Guide: **[docs/TECH_ANALYSIS_FLOW.md](docs/TECH_ANALYSIS_FLOW.md)**.
+
+## Task tracking
+
+Local, markdown-first tasks that link to requirements and tests — and stay honest:
+
+```bash
+katastasi task add "Implement login" --req PROJ-1   # → .acp/tasks/TASK-1.md
+katastasi task set TASK-1 done
+katastasi task board                                # → .acp/BOARD.md (kanban by status)
+katastasi task verify --fail-on drift               # ⚠️ a done task whose reqs aren't verified fails CI
+```
+
+Statuses are configurable (`tasks.statuses`); IDs are global `TASK-<n>` or per-scope (`WEB-<n>`). Set
+`tasks.mode: jira` to import issues read-only (`katastasi task import`). `katastasi analyze` also drops
+its generated stories straight onto the board. Agents drive it all via the `task_*` MCP tools. Full
+design: **[docs/PHASE-1-DESIGN.md](docs/PHASE-1-DESIGN.md)**.
 
 ## Integrations
 

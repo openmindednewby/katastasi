@@ -112,6 +112,22 @@ acp analyze --publish-confluence --publish-jira   # …and push them to Confluen
 `acp analyze` uses the configured AI provider (`AI_PROVIDER`/`AI_BASE_URL`/`AI_MODEL` + an API key);
 the rest is deterministic. `acp trace scaffold-test <KEY>` / `status <KEY>` complete the agent loop.
 
+### Task tracking (`katastasi task`)
+
+```bash
+katastasi task add "Implement login" --req PROJ-1   # → .acp/tasks/TASK-1.md (status, links)
+katastasi task list [--status …] [--req …] [--drift --run]
+katastasi task set TASK-1 done
+katastasi task link TASK-1 --req PROJ-2 --test e2e/login@PROJ-1
+katastasi task board                                # → .acp/BOARD.md (kanban + ⚠️ drift)
+katastasi task verify --fail-on drift               # honesty gate (latest run; --run to refresh)
+katastasi task import                               # mode: jira — read-only issue import
+katastasi migrate                                   # move legacy root dirs into .acp/
+```
+
+Statuses + drift rule + mode are configured under `tasks` in `acp-trace.json`; see
+[PHASE-1-DESIGN.md](PHASE-1-DESIGN.md).
+
 ### Requirements traceability (`acp trace`)
 
 Link tests to requirements and report which requirements hold true at the current git commit
@@ -162,6 +178,8 @@ The server exposes two tools that take **raw markdown strings** (what an agent h
 | `requirement_status` | **Agent loop.** One requirement's current state (verified/failing/…+drift/stale/tests). Args: `key`, `configPath?`. The quick "is KEY done?" check. |
 | `pull_requirements` | **BA pipeline.** Gather requirements from all configured sources into one local folder + manifest. Args: `configPath?`, `dir?`, `force?`. |
 | `analyze` | **BA pipeline.** AI gap analysis → technical-analysis page + Jira tasks + scaffolded tagged tests (local; publish with `markdown_to_*`). Args: `configPath?`, `out?`, `scaffold?`. |
+| `task_add` / `task_list` / `task_set_status` / `task_link` / `task_board` | **Tasks.** Manage local `.acp/tasks` (link to requirements, set status, render the board). `task_list {drift:true}` cross-checks done tasks. |
+| `task_import` | **Tasks.** Import Jira issues read-only into `.acp/tasks` (requires `tasks.mode: jira`). |
 
 **Driving acp from Claude/Copilot:** register the MCP server and use the paste-ready flow prompts in
 **[AGENT_PROMPT.md](AGENT_PROMPT.md)** (implement-a-ticket-with-verification; requirements → use cases

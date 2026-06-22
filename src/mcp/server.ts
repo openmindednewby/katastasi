@@ -33,7 +33,7 @@ import { writeRequirementsFolder } from '../core/trace/requirements/folder.js';
 import { analyze } from '../core/analyze/analyze.js';
 import { generateQuestions } from '../core/questions/generate.js';
 
-const server = new McpServer({ name: 'katastasi', version: '0.2.0' });
+const server = new McpServer({ name: 'katastasi', version: '0.3.0' });
 
 const TASK_MD_DESC =
   'Markdown for each Story (one string per Story). First `# ` line becomes the summary; ' +
