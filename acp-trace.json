@@ -1,0 +1,38 @@
+{
+  "project": "Katastasi",
+  "scopes": [
+    {
+      "name": "katastasi",
+      "requirements": [
+        { "type": "markdown", "path": "docs/requirements.md" }
+      ],
+      "tests": [
+        {
+          "tech": "node",
+          "globs": ["test/**/*.test.js"],
+          "command": "npm run build && node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=.acp/results/node.xml",
+          "results": [".acp/results/node.xml"]
+        },
+        {
+          "tech": "acceptance",
+          "globs": [".acp/tests/**/*.acp.json", ".acp/tests/**/*.acp.yml", ".acp/tests/**/*.acp.md"],
+          "results": [".acp/results/acceptance.xml"]
+        }
+      ],
+      "code": ["src/**/*.ts"]
+    }
+  ],
+  "tasks": {
+    "mode": "local",
+    "statuses": ["todo", "in-progress", "blocked", "done"],
+    "doneStatuses": ["done"],
+    "driftRule": "unverified"
+  },
+  "history": { "dir": ".acp/runs", "keep": 30 },
+  "output": {
+    "markdown": ".acp/RTM.md",
+    "html": ".acp/rtm.html",
+    "json": ".acp/rtm.json"
+  },
+  "portal": { "port": 8787 }
+}

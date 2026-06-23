@@ -17,3 +17,10 @@ preview/*.html
 custom-prompts/custom-prompts.js
 !custom-prompts/.gitkeep
 !custom-prompts/custom-prompts.example.js
+
+# Katastasi self-dogfood: generated run/report artifacts (source lives in .acp/tasks, .acp/tests)
+.acp/runs/
+.acp/results/
+.acp/RTM.md
+.acp/rtm.html
+.acp/rtm.json

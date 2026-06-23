@@ -1,0 +1,6 @@
+{ "req": "KAT-7", "cases": [
+  { "name": "CLI reports its version",
+    "steps": [ { "run": "node dist/cli/index.js --version", "expect": { "exit": 0, "bodyContains": "0.4.0" } } ] },
+  { "name": "CLI help lists the test command",
+    "steps": [ { "run": "node dist/cli/index.js --help", "expect": { "exit": 0, "bodyContains": "test" } } ] }
+] }
