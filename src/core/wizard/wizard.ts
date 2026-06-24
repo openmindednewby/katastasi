@@ -110,7 +110,7 @@ export function buildFeaturePack(args: BuildArgs): FeaturePack {
     source: args.source,
     generatedAt: args.generatedAt,
     requirements: args.requirements.map((r) => ({ key: r.key, title: r.title, status: r.declaredStatus ?? undefined })),
-    systemMermaid: extractFirstMermaid(args.techMd),
+    systemMermaid: args.analyzeResult?.systemDiagram ?? extractFirstMermaid(args.techMd),
     useCases: tasks.filter((t) => t.flowMermaid).map((t) => ({ key: t.key, title: t.title, mermaid: t.flowMermaid })),
     gapAnalysis: args.gapMd ? args.gapMd.replace(/^#\s+Gap Analysis\s*/i, '').trim() : undefined,
     tasks: tasks.map((t) => ({ key: t.key, title: t.title, requirements: [t.key], context: taskContext(t, args.outDirRel) })),

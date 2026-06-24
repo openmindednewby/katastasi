@@ -33,6 +33,8 @@ export interface AnalyzeTask {
 export interface AnalyzeOutput {
   gapAnalysis: string;
   technicalAnalysis: string;
+  /** Mermaid flowchart of the end-to-end DATA FLOW across the system (client → endpoints → services → stores). */
+  systemDiagram?: string;
   tasks: AnalyzeTask[];
 }
 export interface AnalyzeResult {
@@ -44,6 +46,8 @@ export interface AnalyzeResult {
   acceptanceSpecs: string[];
   /** Native `.acp/tasks` ids created from the stories (local mode; empty otherwise). */
   nativeTasks: string[];
+  /** End-to-end system data-flow diagram (mermaid), when produced. */
+  systemDiagram?: string;
   /** 'ask' (produced an open-questions form) or 'full' (produced the tech docs + tasks). */
   mode: 'ask' | 'full';
   /** In ask mode, the path of the generated interactive form. */
@@ -75,10 +79,11 @@ produce a precise technical gap analysis and a development-ready breakdown. Resp
 {
   "gapAnalysis": "<markdown: which requirements appear implemented vs missing vs partial, and why>",
   "technicalAnalysis": "<markdown Confluence page: architecture, API endpoints + contracts, data flow; include mermaid diagrams in \\\`\\\`\\\`mermaid fences>",
+  "systemDiagram": "<a mermaid 'flowchart LR' body ONLY (no fences) showing the END-TO-END DATA FLOW across the whole feature: client/UI → each API endpoint → services/handlers → datastores → external systems, with LABELLED edges naming the data that moves (e.g. POST /login -->|credentials| AuthSvc; AuthSvc -->|user row| DB). This is the full system design the developer reads first.>",
   "tasks": [
     { "key": "<requirement key, reuse the given keys>", "title": "<short>",
       "acceptanceCriteria": ["<testable criterion>", "..."],
-      "flowMermaid": "<a use-case flow as a mermaid 'flowchart TD' body>",
+      "flowMermaid": "<a mermaid 'flowchart TD' body ONLY (no fences) for THIS use-case/endpoint's DATA FLOW: request → handler → service → datastore → response, with labelled edges and the validation/branch points (e.g. valid? -->|no| 401). One diagram per task.>",
       "tests": [ { "tech": "playwright", "title": "<e2e test name>" }, { "tech": "jest", "title": "<unit test name>" } ],
       "acceptanceTests": [ { "name": "<case>", "steps": [ { "POST": "/path", "body": {}, "expect": { "status": 201, "json": { "$.id": "exists" } }, "capture": { "id": "$.id" } } ] } ] }
   ]
@@ -179,6 +184,7 @@ export function validateOutput(raw: unknown): AnalyzeOutput {
   return {
     gapAnalysis: typeof o.gapAnalysis === 'string' ? o.gapAnalysis : '(none)',
     technicalAnalysis: typeof o.technicalAnalysis === 'string' ? o.technicalAnalysis : '(none)',
+    ...(typeof o.systemDiagram === 'string' && o.systemDiagram.trim() ? { systemDiagram: o.systemDiagram } : {}),
     tasks: tasks.map((t) => ({
       key: String((t as AnalyzeTask).key ?? '').toUpperCase(),
       title: String((t as AnalyzeTask).title ?? ''),
@@ -255,7 +261,9 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
   mkdirSync(join(outDir, 'tasks'), { recursive: true });
 
   write('gap-analysis.md', `# Gap Analysis\n\n${out.gapAnalysis}\n`);
-  write('technical-analysis.md', out.technicalAnalysis.startsWith('#') ? `${out.technicalAnalysis}\n` : `# Technical Analysis\n\n${out.technicalAnalysis}\n`);
+  const techBody = out.technicalAnalysis.startsWith('#') ? out.technicalAnalysis : `# Technical Analysis\n\n${out.technicalAnalysis}`;
+  const systemSection = out.systemDiagram ? `\n\n## System data-flow\n\n\`\`\`mermaid\n${out.systemDiagram.trim()}\n\`\`\`` : '';
+  write('technical-analysis.md', `${techBody}${systemSection}\n`);
   const epic = `# Technical Analysis — Tasks\n\n${out.tasks.map((t) => `- **${t.key}** ${t.title}`).join('\n')}\n`;
   write(join('tasks', 'epic.md'), epic);
   for (const t of out.tasks) write(join('tasks', `${t.key}.md`), taskMarkdown(t));
@@ -287,5 +295,5 @@ export async function analyze(config: TraceConfig, baseDir: string, opts: Analyz
   const nativeTasks =
     opts.writeTasks === false ? [] : createTasksFromAnalyze(baseDir, config, out.tasks.map((t) => ({ key: t.key, title: t.title })));
 
-  return { outDir, files, tasks: out.tasks, scaffolded, acceptanceSpecs, nativeTasks, mode: 'full' };
+  return { outDir, files, tasks: out.tasks, scaffolded, acceptanceSpecs, nativeTasks, mode: 'full', ...(out.systemDiagram ? { systemDiagram: out.systemDiagram } : {}) };
 }

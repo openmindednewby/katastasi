@@ -1,8 +1,8 @@
 # Katastasi — Board
 
-_27 task(s) · 1 done · 0 ⚠️ drift._
+_27 task(s) · 2 done · 0 ⚠️ drift._
 
-## todo (25)
+## todo (24)
 
 - **TASK-2** Tag the test suite with @KAT-n keys so requirements show verified in trace · KAT-2, KAT-9
 - **TASK-3** Fix trace init: autodetected node command uses ** glob (node-20 fails) and emits no JUnit · KAT-2
@@ -25,7 +25,6 @@ _27 task(s) · 1 done · 0 ⚠️ drift._
 - **TASK-20** Add 5 planned templates (onboarding, retro, small-refactor, config-change, infra-change) · KAT-6
 - **TASK-21** Wire team-profile injection into the AI prompt · KAT-6
 - **TASK-22** Retire legacy docs/Tasks/*.md into .acp/tasks (stale IN_PROGRESS/COMPLETED) · KAT-3
-- **TASK-24** Wizard phase 2: per-endpoint/use-case data-flow mermaid (system + each endpoint) · KAT-10
 - **TASK-25** Wizard phase 3: dependency task ordering + inline agent-context (code+Jira+Confluence) · KAT-10
 - **TASK-26** Wizard phase 4: ready-made curl id-sourcing (real ids with data) · KAT-10
 - **TASK-27** Wizard phase 5: requirement-change diff (re-run shows what moved) · KAT-10
@@ -38,6 +37,7 @@ _27 task(s) · 1 done · 0 ⚠️ drift._
 
 _(none)_
 
-## done (1)
+## done (2)
 
 - **TASK-23** Feature wizard slice 1: CLI + HTML feature pack + auth guide + MCP · KAT-10 ✅
+- **TASK-24** Wizard phase 2: per-endpoint/use-case data-flow mermaid (system + each endpoint) · KAT-10 ✅

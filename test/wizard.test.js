@@ -112,7 +112,8 @@ test('renderFeaturePackMarkdown: mirrors the pack', () => {
 
 const FAKE = JSON.stringify({
   gapAnalysis: 'FEAT-1 login is missing.',
-  technicalAnalysis: '# Technical Analysis\n\nAuth.\n\n```mermaid\nflowchart TD\n  U[User]-->API[/login]\n  API-->DB[(users)]\n```',
+  technicalAnalysis: '# Technical Analysis\n\nAuth.',
+  systemDiagram: 'flowchart LR\n  UI -->|credentials| API[/login]\n  API -->|user row| DB[(users)]',
   tasks: [
     { key: 'FEAT-1', title: 'Implement login', acceptanceCriteria: ['rejects bad creds', 'returns a token'],
       flowMermaid: 'flowchart TD\n  A[POST /login]-->B{valid?}\n  B-->|no|E[401]', tests: [{ tech: 'playwright', title: 'login e2e' }],
@@ -130,7 +131,7 @@ test('runWizard: source none + fake AI → writes feature pack (html + md) @KAT-
 
   assert.equal(r.pack.requirements.some((x) => x.key === 'FEAT-1'), true);
   assert.equal(r.pack.tasks.length, 1);
-  assert.ok(r.pack.systemMermaid);
+  assert.match(r.pack.systemMermaid, /flowchart LR[\s\S]*credentials/); // explicit systemDiagram preferred
   assert.equal(r.pack.useCases.length, 1);
   assert.equal(r.pack.curls.length, 1);
   assert.ok(existsSync(r.htmlPath));

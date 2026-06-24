@@ -146,3 +146,20 @@ test('analyze: writes executable acceptance specs + inline acp-test block', asyn
   assert.match(readFileSync(join(root, 'ta', 'tasks', 'PROJ-1.md'), 'utf8'), /```acp-test/);
   assert.doesNotMatch(readFileSync(join(root, 'ta', 'tasks', 'PROJ-2.md'), 'utf8'), /```acp-test/);
 });
+
+// Wizard phase 2: analyze emits an explicit end-to-end system data-flow diagram.
+test('analyze: systemDiagram is returned + written into technical-analysis.md', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'rtm-sysdiag-'));
+  mkdirSync(join(root, 'docs'), { recursive: true });
+  writeFileSync(join(root, 'docs', 'requirements.md'), '- [ ] PROJ-1 Login');
+  const config = parseTraceConfig(JSON.stringify({ scopes: [{ requirements: [{ type: 'markdown', path: 'docs/requirements.md' }], tests: [] }] }));
+  const reply = JSON.stringify({
+    gapAnalysis: 'gap',
+    technicalAnalysis: '# Technical Analysis\n\nAuth.',
+    systemDiagram: 'flowchart LR\n  UI -->|credentials| API[/login]\n  API -->|user row| DB[(users)]',
+    tasks: [{ key: 'PROJ-1', title: 'Login', acceptanceCriteria: [], tests: [] }],
+  });
+  const r = await analyze(config, root, { chat: async () => reply, outDir: 'ta', scaffold: false });
+  assert.match(r.systemDiagram, /flowchart LR/);
+  assert.match(readFileSync(join(root, 'ta', 'technical-analysis.md'), 'utf8'), /## System data-flow[\s\S]*credentials/);
+});

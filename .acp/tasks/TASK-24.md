@@ -1,7 +1,7 @@
 ---
 id: TASK-24
 title: "Wizard phase 2: per-endpoint/use-case data-flow mermaid (system + each endpoint)"
-status: todo
+status: done
 requirements: [KAT-10]
 tests: []
 assignee: ~
