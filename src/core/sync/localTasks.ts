@@ -8,6 +8,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { allocateId, readTask, writeTask, type Task } from '../trace/tasks/model.js';
 import type { SyncRecord } from './model.js';
+import { identityMapper, type StatusMapper } from './statusMapper.js';
 
 export interface LocalRecord {
   path: string; // absolute file path
@@ -16,13 +17,13 @@ export interface LocalRecord {
   record: SyncRecord;
 }
 
-export function taskToRecord(task: Task): SyncRecord {
-  return { title: task.title, body: task.body, status: task.status, labels: task.labels ?? [] };
+export function taskToRecord(task: Task, mapper: StatusMapper = identityMapper): SyncRecord {
+  return { title: task.title, body: task.body, status: mapper.toRemote(task.status), labels: task.labels ?? [] };
 }
 
 /** Apply a reconciled record onto a task (title/body/status/labels), stamping `updated`. */
-export function applyRecord(task: Task, record: SyncRecord, today: string): Task {
-  const next: Task = { ...task, title: record.title, body: record.body, status: record.status, updated: today };
+export function applyRecord(task: Task, record: SyncRecord, today: string, mapper: StatusMapper = identityMapper): Task {
+  const next: Task = { ...task, title: record.title, body: record.body, status: mapper.toLocal(record.status), updated: today };
   if (record.labels.length) next.labels = [...record.labels];
   else delete next.labels;
   return next;
@@ -33,7 +34,7 @@ function relKey(baseDir: string, path: string): string {
 }
 
 /** Every task under `tasksRoot`, with its path + canonical record. */
-export function listLocalRecords(baseDir: string, tasksRoot: string): LocalRecord[] {
+export function listLocalRecords(baseDir: string, tasksRoot: string, mapper: StatusMapper = identityMapper): LocalRecord[] {
   if (!existsSync(tasksRoot)) return [];
   const out: LocalRecord[] = [];
   const walk = (dir: string): void => {
@@ -42,7 +43,7 @@ export function listLocalRecords(baseDir: string, tasksRoot: string): LocalRecor
       if (statSync(p).isDirectory()) walk(p);
       else if (entry.endsWith('.md') && entry !== 'BOARD.md') {
         const task = readTask(p);
-        out.push({ path: p, key: relKey(baseDir, p), task, record: taskToRecord(task) });
+        out.push({ path: p, key: relKey(baseDir, p), task, record: taskToRecord(task, mapper) });
       }
     }
   };
@@ -51,8 +52,8 @@ export function listLocalRecords(baseDir: string, tasksRoot: string): LocalRecor
 }
 
 /** Write a reconciled record back into an existing task file (same path). */
-export function writeRecordToTask(path: string, record: SyncRecord, today: string): void {
-  const updated = applyRecord(readTask(path), record, today);
+export function writeRecordToTask(path: string, record: SyncRecord, today: string, mapper: StatusMapper = identityMapper): void {
+  const updated = applyRecord(readTask(path), record, today, mapper);
   writeTask(dirname(path), updated);
 }
 
@@ -72,11 +73,12 @@ export function createTaskFromRecord(
   idPrefix: string,
   today: string,
   link?: { remoteId: string; remoteUrl?: string },
+  mapper: StatusMapper = identityMapper,
 ): { path: string; key: string; task: Task } {
   const task: Task = {
     id: allocateId(baseDir, idPrefix),
     title: record.title,
-    status: record.status,
+    status: mapper.toLocal(record.status),
     requirements: [],
     tests: [],
     assignee: null,

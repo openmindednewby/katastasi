@@ -12,6 +12,7 @@ import type { Plan, PlanAction, PlanItem } from './plan.js';
 import { planSummary } from './plan.js';
 import { conflictPath, type RecordState } from './state.js';
 import { createTaskFromRecord, linkTaskRemote, writeRecordToTask } from './localTasks.js';
+import { identityMapper, type StatusMapper } from './statusMapper.js';
 
 export type Direction = 'both' | 'push' | 'pull';
 
@@ -23,6 +24,7 @@ export interface ExecuteOptions {
   today: string;
   apply: boolean; // false = preview
   direction: Direction;
+  mapper?: StatusMapper; // local↔remote status mapping (default identity)
 }
 
 export interface SyncResult {
@@ -78,6 +80,7 @@ export async function executeSync(
   opts: ExecuteOptions,
 ): Promise<SyncResult> {
   const res: SyncResult = { applied: opts.apply, summary: planSummary(plan), conflicts: [], links: [], flags: [], errors: [] };
+  const mapper = opts.mapper ?? identityMapper;
   const baseline = (key: string, remoteId: string, remoteRev: string, base: SyncRecord): void => {
     records[key] = { remoteId, remoteRev, base, lastSyncedAt: opts.today };
   };
@@ -114,7 +117,7 @@ export async function executeSync(
           } else throw err;
         }
       } else if (item.action === 'pull' && item.key && item.path && item.remote && item.remoteId && item.remoteRev) {
-        writeRecordToTask(item.path, item.remote, opts.today);
+        writeRecordToTask(item.path, item.remote, opts.today, mapper);
         baseline(item.key, item.remoteId, item.remoteRev, item.remote);
       } else if (item.action === 'create-remote' && item.key && item.path && item.local) {
         const created = await adapter.create(item.local);
@@ -122,7 +125,7 @@ export async function executeSync(
         baseline(item.key, created.id, created.rev, item.local);
         res.links.push({ key: item.key, remoteId: created.id, url: created.url });
       } else if (item.action === 'pull-create' && item.remoteId && item.remote && item.remoteRev) {
-        const made = createTaskFromRecord(opts.baseDir, opts.tasksRoot, item.remote, opts.idPrefix, opts.today, { remoteId: item.remoteId, remoteUrl: item.remoteUrl });
+        const made = createTaskFromRecord(opts.baseDir, opts.tasksRoot, item.remote, opts.idPrefix, opts.today, { remoteId: item.remoteId, remoteUrl: item.remoteUrl }, mapper);
         baseline(made.key, item.remoteId, item.remoteRev, item.remote);
         res.links.push({ key: made.key, remoteId: item.remoteId, url: item.remoteUrl });
       }
