@@ -1,14 +1,13 @@
 # Katastasi — Board
 
-_32 task(s) · 10 done · 0 ⚠️ drift._
+_32 task(s) · 12 done · 0 ⚠️ drift._
 
-## todo (21)
+## todo (19)
 
 - **TASK-2** Tag the test suite with @KAT-n keys so requirements show verified in trace · KAT-2, KAT-9
 - **TASK-3** Fix trace init: autodetected node command uses ** glob (node-20 fails) and emits no JUnit · KAT-2
 - **TASK-4** Resolve the 10 Phase 3 sync open questions with the owner · KAT-5
 - **TASK-5** Decide Phase 3 first sync adapter: GitHub Issues (dogfoodable) vs Jira-first · KAT-5
-- **TASK-7** Phase 3 v2: field-level auto-merge (0.6.0) · KAT-5
 - **TASK-8** Phase 3 v3: interactive 3-way resolution (0.7.0) · KAT-5
 - **TASK-9** Phase 2.2: link existing unit suites (Jest/pytest/xUnit) to acceptance · KAT-4
 - **TASK-10** Phase 2.2: link Playwright/browser suites · KAT-4
@@ -24,7 +23,6 @@ _32 task(s) · 10 done · 0 ⚠️ drift._
 - **TASK-20** Add 5 planned templates (onboarding, retro, small-refactor, config-change, infra-change) · KAT-6
 - **TASK-21** Wire team-profile injection into the AI prompt · KAT-6
 - **TASK-22** Retire legacy docs/Tasks/*.md into .acp/tasks (stale IN_PROGRESS/COMPLETED) · KAT-3
-- **TASK-32** dloizides.com front page for the wizard (static, documents the npx command) · KAT-10
 
 ## in-progress (1)
 
@@ -34,9 +32,10 @@ _32 task(s) · 10 done · 0 ⚠️ drift._
 
 _(none)_
 
-## done (10)
+## done (12)
 
 - **TASK-6** Phase 3 v1: safe one-way sync + conflict flag (0.5.0) · KAT-5 ✅
+- **TASK-7** Phase 3 v2: field-level auto-merge (0.6.0) · KAT-5 ✅
 - **TASK-23** Feature wizard slice 1: CLI + HTML feature pack + auth guide + MCP · KAT-10 ✅
 - **TASK-24** Wizard phase 2: per-endpoint/use-case data-flow mermaid (system + each endpoint) · KAT-10 ✅
 - **TASK-25** Wizard phase 3: dependency task ordering + inline agent-context (code+Jira+Confluence) · KAT-10 ✅
@@ -46,3 +45,4 @@ _(none)_
 - **TASK-29** Agent skills for all actions + init-skills generator (Claude + Copilot) · KAT-10 ✅
 - **TASK-30** Local web wizard (npx katastasi serve): browser onboarding, 100% local, no login · KAT-10 ✅
 - **TASK-31** Web wizard: Jira epic / Confluence page DISCOVERY (list to pick from) · KAT-10 ✅
+- **TASK-32** dloizides.com front page for the wizard (static, documents the npx command) · KAT-10 ✅

@@ -113,9 +113,10 @@ A conflicted record is **not applied**; both versions are written to
 7. **CLI `katastasi sync` (+ `status`) + MCP `sync_preview`/`sync_apply`** + the config `sync` block + docs (`docs/SYNC.md`).
 8. **Confluence + GitHub/GitLab issue adapters** (rev = Confluence `version.number` / issue `updated_at`+ETag).
 
-**v2 — field-level auto-merge (ships as 0.6.0):**
-9. **Field 3-way merge** — both sides changed but in **disjoint** fields → merge automatically; only
-   same-field divergence remains a conflict. `mergeStrategy: field-merge`.
+**v2 — field-level auto-merge ✅ (2026-06-24):**
+9. **Field 3-way merge** — `fieldMerge(base,local,remote)` + a `merge` plan action + executor (writes the
+   merged record to both sides, optimistic-concurrency safe, needs direction `both`); `sync.mergeStrategy:
+   "field-merge"`. Disjoint-field edits merge; same-field divergence stays a conflict.
 
 **v3 — interactive resolution (ships as 0.7.0):**
 10. **Interactive resolver** — `katastasi sync resolve <id> --take local|remote` (and edit) + a portal

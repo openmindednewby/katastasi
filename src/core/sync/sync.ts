@@ -62,7 +62,7 @@ export async function runSync(config: TraceConfig, baseDir: string, opts: SyncRu
   const out: BindingResult[] = [];
 
   for (const binding of bindings) {
-    const blank: SyncResult = { applied: apply, summary: { skip: 0, push: 0, pull: 0, 'create-remote': 0, 'pull-create': 0, converged: 0, conflict: 0, 'local-deleted': 0, 'remote-deleted': 0 }, conflicts: [], links: [], flags: [], errors: [] };
+    const blank: SyncResult = { applied: apply, summary: { skip: 0, push: 0, pull: 0, 'create-remote': 0, 'pull-create': 0, converged: 0, merge: 0, conflict: 0, 'local-deleted': 0, 'remote-deleted': 0 }, conflicts: [], links: [], flags: [], errors: [] };
     try {
       const adapter = opts.adapters?.[binding.id] ?? buildAdapter(binding, env);
       const mapper = makeStatusMapper(binding.statusMap ?? (binding.remote.type === 'github' ? DEFAULT_GITHUB_STATUS_MAP : undefined));
@@ -72,7 +72,7 @@ export async function runSync(config: TraceConfig, baseDir: string, opts: SyncRu
 
       const locals = listLocalRecords(baseDir, tasksRoot, mapper);
       const remotes = await adapter.list();
-      const plan = planSync(locals, remotes, records);
+      const plan = planSync(locals, remotes, records, config.sync?.mergeStrategy ?? 'conflict-flag');
       const res = await executeSync(plan, adapter, records, { baseDir, bindingId: binding.id, tasksRoot, idPrefix, today, apply, direction, mapper });
       out.push({ ...res, bindingId: binding.id, remoteType: binding.remote.type });
     } catch (err) {

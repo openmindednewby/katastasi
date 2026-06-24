@@ -184,7 +184,7 @@ export function renderWizardPage(): string {
     h += list(d.results, function(r){
       if (r.error) return '<section class="card"><b>'+escapeHtml(r.bindingId)+'</b> ('+escapeHtml(r.remoteType)+') — <span style="color:var(--bad)">'+escapeHtml(r.error)+'</span></section>';
       var s = r.summary;
-      var line = '↑'+(s.push+s['create-remote'])+' pushed · ↓'+(s.pull+s['pull-create'])+' pulled · ='+(s.skip+s.converged)+' in-sync · ⚠️'+s.conflict+' conflict';
+      var line = '↑'+(s.push+s['create-remote'])+' pushed · ↓'+(s.pull+s['pull-create'])+' pulled · ⇄'+(s.merge||0)+' merged · ='+(s.skip+s.converged)+' in-sync · ⚠️'+s.conflict+' conflict';
       var links = list(r.links, function(l){ return '<li class="muted">linked '+escapeHtml(l.key)+' ↔ '+escapeHtml(l.remoteId)+(l.url?' <a href="'+escapeHtml(l.url)+'" target="_blank">open</a>':'')+'</li>'; });
       var confs = list(r.conflicts, function(c){ return '<li style="color:var(--bad)">⚠️ conflict '+escapeHtml(c.key||c.remoteId||'')+' ['+escapeHtml((c.fields||[]).join(', '))+']</li>'; });
       return '<section class="card"><b>'+escapeHtml(r.bindingId)+'</b> ('+escapeHtml(r.remoteType)+'): '+line+'<ul style="margin:.4em 0">'+links+confs+'</ul></section>';

@@ -122,6 +122,8 @@ export const traceConfigSchema = z.object({
    */
   sync: z
     .object({
+      /** conflict-flag (v1, default) flags every both-changed record; field-merge (v2) auto-merges disjoint-field edits. */
+      mergeStrategy: z.enum(['conflict-flag', 'field-merge']).optional(),
       bindings: z
         .array(
           z.object({
