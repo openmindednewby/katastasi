@@ -1,7 +1,7 @@
 ---
 id: TASK-25
 title: "Wizard phase 3: dependency task ordering + inline agent-context (code+Jira+Confluence)"
-status: todo
+status: done
 requirements: [KAT-10]
 tests: []
 assignee: ~

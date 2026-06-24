@@ -71,8 +71,36 @@ export function curlsFromAcceptance(tasks: AnalyzeTask[]): FeatureCurl[] {
   return curls;
 }
 
-function taskContext(t: AnalyzeTask, outDirRel: string): string[] {
+/**
+ * Dependency-order the tasks (post-order DFS over `dependsOn` keys → prerequisites first). Stable for
+ * independent tasks; cycles are broken by a visiting guard rather than throwing.
+ */
+export function orderTasks(tasks: AnalyzeTask[]): AnalyzeTask[] {
+  const byKey = new Map(tasks.map((t) => [t.key, t]));
+  const emitted = new Set<string>();
+  const visiting = new Set<string>();
+  const out: AnalyzeTask[] = [];
+  const visit = (t: AnalyzeTask): void => {
+    if (emitted.has(t.key) || visiting.has(t.key)) return;
+    visiting.add(t.key);
+    for (const dep of t.dependsOn ?? []) {
+      const d = byKey.get(dep);
+      if (d) visit(d);
+    }
+    visiting.delete(t.key);
+    emitted.add(t.key);
+    out.push(t);
+  };
+  for (const t of tasks) visit(t);
+  return out;
+}
+
+/** Inline everything an executor needs: criteria, code files, the requirement link, deps, diagram, spec. */
+function taskContext(t: AnalyzeTask, outDirRel: string, reqUrl?: string): string[] {
   const ctx: string[] = [];
+  if (t.dependsOn?.length) ctx.push(`depends on: ${t.dependsOn.join(', ')}`);
+  if (t.files?.length) ctx.push(`code: ${t.files.join(', ')}`);
+  if (reqUrl) ctx.push(`requirement: ${reqUrl}`);
   for (const c of t.acceptanceCriteria) ctx.push(`criterion: ${c}`);
   ctx.push(`task doc: ${outDirRel}/tasks/${t.key}.md`);
   if (Array.isArray(t.acceptanceTests) && t.acceptanceTests.length) ctx.push('executable acceptance spec: .acp/tests/' + t.key + '.acp.json');
@@ -93,7 +121,7 @@ function buildTests(tasks: AnalyzeTask[], acceptanceSpecs: string[]): FeatureTes
 interface BuildArgs {
   feature: string;
   source: string;
-  requirements: Array<{ key: string; title: string; declaredStatus: string | null }>;
+  requirements: Array<{ key: string; title: string; declaredStatus: string | null; url?: string }>;
   analyzeResult?: AnalyzeResult;
   techMd?: string;
   gapMd?: string;
@@ -104,7 +132,8 @@ interface BuildArgs {
 
 /** Assemble a FeaturePack from the gathered requirements + the analyze output. Pure. */
 export function buildFeaturePack(args: BuildArgs): FeaturePack {
-  const tasks = args.analyzeResult?.tasks ?? [];
+  const tasks = orderTasks(args.analyzeResult?.tasks ?? []);
+  const reqUrl = new Map(args.requirements.filter((r) => r.url).map((r) => [r.key, r.url!]));
   return {
     feature: args.feature,
     source: args.source,
@@ -113,7 +142,7 @@ export function buildFeaturePack(args: BuildArgs): FeaturePack {
     systemMermaid: args.analyzeResult?.systemDiagram ?? extractFirstMermaid(args.techMd),
     useCases: tasks.filter((t) => t.flowMermaid).map((t) => ({ key: t.key, title: t.title, mermaid: t.flowMermaid })),
     gapAnalysis: args.gapMd ? args.gapMd.replace(/^#\s+Gap Analysis\s*/i, '').trim() : undefined,
-    tasks: tasks.map((t) => ({ key: t.key, title: t.title, requirements: [t.key], context: taskContext(t, args.outDirRel) })),
+    tasks: tasks.map((t) => ({ key: t.key, title: t.title, requirements: [t.key], context: taskContext(t, args.outDirRel, reqUrl.get(t.key)) })),
     tests: buildTests(tasks, args.analyzeResult?.acceptanceSpecs ?? []),
     curls: curlsFromAcceptance(tasks),
     docs: { mdDir: 'feature-pack.md', confluenceUrl: args.confluenceUrl },
