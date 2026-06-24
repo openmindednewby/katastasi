@@ -220,6 +220,19 @@ katastasi sync status          # recorded task↔remote links (no network)
 `--fail-on none|conflict`. Configure via a `sync` block in `acp-trace.json`; creds from env
 (`GITHUB_TOKEN` / `JIRA_*`).
 
+### Local web wizard (`katastasi web`)
+
+The browser onboarding wizard — 100% local, no login (guide: [WEB-WIZARD-DESIGN.md](WEB-WIZARD-DESIGN.md)).
+
+```bash
+katastasi web                 # opens http://localhost:8799 (Connect → Source → … → Sync)
+katastasi web --port 9000 --host 127.0.0.1
+```
+
+A loopback `node:http` server on the dev's machine + a self-contained page. The **Connect** step saves
+Atlassian/GitHub creds to the local `.env` (tokens never leave the PC). Later steps (paste a Jira/Confluence
+URL → discover related issues+pages → pull → design → review → sync) land in subsequent slices.
+
 ### Agent skills (`katastasi init-skills`)
 
 Install Katastasi skills into any repo so Claude Code + GitHub Copilot can drive every action as

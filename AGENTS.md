@@ -43,6 +43,9 @@ The core conversion + REST logic lives in `src/core/` and is plain TypeScript wi
   `test_run`. See [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
 - **Tasks** — local markdown task tracking (`katastasi task …`) linked to requirements + tests, with a
   done-but-not-verified ⚠️ drift check. See [docs/PHASE-1-DESIGN.md](docs/PHASE-1-DESIGN.md).
+- **Web wizard** — `katastasi web` (slice 1): a 100%-local browser onboarding wizard (loopback
+  `node:http` + self-contained page). Connect step saves creds to local `.env`; later slices add
+  paste-URL → discover → pull → design → sync. See [docs/WEB-WIZARD-DESIGN.md](docs/WEB-WIZARD-DESIGN.md).
 - **Agent skills** — `katastasi init-skills` installs per-action skills into any repo
   (`.claude/skills/*` + `.github/copilot-instructions.md`) so Claude Code & Copilot run onboard / design /
   sync / trace / test / tasks as one-liners. Run once per service.

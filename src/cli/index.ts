@@ -34,6 +34,7 @@ import { runAcceptance } from '../core/trace/acceptance/orchestrate.js';
 import { runWizard, wizardCheck, ensureRequirementsDoc, type WizardSource } from '../core/wizard/wizard.js';
 import { runSync, syncLinks } from '../core/sync/sync.js';
 import { installSkills } from '../core/skills/install.js';
+import { startWebServer } from '../core/web/server.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -589,6 +590,22 @@ async function collectWizardAnswers(opts: { feature?: string; source?: string; r
     rl.close();
   }
 }
+
+program
+  .command('web')
+  .description('Open the local feature-onboarding wizard in your browser (100% local, no login). Connect → Source → Select → Download → Design → Review → Sync.')
+  .option('--config <path>', 'config file (sets the working dir)', DEFAULT_CONFIG_FILENAME)
+  .option('--port <n>', 'port (default 8799)', (v) => parseInt(v, 10))
+  .option('--host <host>', 'bind host (default 127.0.0.1 — loopback only)')
+  .action(async (opts) => {
+    try {
+      const baseDir = existsSync(resolve(opts.config)) ? dirname(resolve(opts.config)) : process.cwd();
+      const running = await startWebServer({ baseDir, port: opts.port, host: opts.host });
+      process.stdout.write(`\n  Katastasi wizard → ${running.url}\n  (100% local · creds saved to .env on this machine · Ctrl+C to stop)\n`);
+    } catch (err) {
+      fail(err);
+    }
+  });
 
 program
   .command('init-skills')

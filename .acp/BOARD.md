@@ -2,7 +2,7 @@
 
 _32 task(s) · 8 done · 0 ⚠️ drift._
 
-## todo (23)
+## todo (22)
 
 - **TASK-2** Tag the test suite with @KAT-n keys so requirements show verified in trace · KAT-2, KAT-9
 - **TASK-3** Fix trace init: autodetected node command uses ** glob (node-20 fails) and emits no JUnit · KAT-2
@@ -24,13 +24,13 @@ _32 task(s) · 8 done · 0 ⚠️ drift._
 - **TASK-20** Add 5 planned templates (onboarding, retro, small-refactor, config-change, infra-change) · KAT-6
 - **TASK-21** Wire team-profile injection into the AI prompt · KAT-6
 - **TASK-22** Retire legacy docs/Tasks/*.md into .acp/tasks (stale IN_PROGRESS/COMPLETED) · KAT-3
-- **TASK-30** Local web wizard (npx katastasi serve): browser onboarding, 100% local, no login · KAT-10
 - **TASK-31** Web wizard: Jira epic / Confluence page DISCOVERY (list to pick from) · KAT-10
 - **TASK-32** dloizides.com front page for the wizard (static, documents the npx command) · KAT-10
 
-## in-progress (1)
+## in-progress (2)
 
 - **TASK-1** Dogfood Katastasi on its own repo: acp-trace.json + .acp store + board · KAT-9, KAT-3
+- **TASK-30** Local web wizard (npx katastasi serve): browser onboarding, 100% local, no login · KAT-10
 
 ## blocked (0)
 

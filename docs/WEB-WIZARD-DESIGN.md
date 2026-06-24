@@ -73,9 +73,20 @@ These become `list`-style methods on the requirement providers / a small `discov
 Multi-user or hosted-with-accounts (explicitly not wanted); real-time collaboration; editing the remote
 from the SPA beyond sync; a packaged desktop app (Electron) — `npx` covers it.
 
-## 7. Open questions
-1. Command name — extend `katastasi serve` with a `--wizard` mode, or a dedicated `katastasi web` / `katastasi onboard`?
-2. Source input — paste a full Jira/Confluence **URL** (parse out project/space), or pick project/space from a dropdown the server lists?
-3. Output location — let the dev type/browse a folder in the SPA, or default to `.acp/` and show where it went?
-4. Does the Review step **replace** the downloaded `feature-pack.html`, or produce both (inline + file)?
-5. Testing the SPA — manual + the Chrome devtools, or add a lightweight Playwright smoke (new dep)?
+## 7. Open questions — RESOLVED 2026-06-24
+1. **Command** → `katastasi web` (dedicated; "the full web"). ✅ Built (slice 1).
+2. **Source input** → paste any Jira/Confluence **URL** + **deep discovery**: an epic pulls its children
+   *and* related Confluence pages, *and* follows links found in descriptions to further epics/pages —
+   then the dev **confirms** (ticks/unticks) everything discovered before pulling. *(The meaty net-new
+   slice; see §5 — needs recursive discovery + link extraction.)*
+3. **Output** → default to `.acp/` and show the dev where it landed (override later).
+4. **Review** → render inline in the SPA **and** still write `feature-pack.html` (both).
+5. **Testing** → `/api/*` endpoints via `node:test` (real http, no new dep); SPA checked in a browser.
+   No Playwright.
+
+## 8. Build status
+- **Slice 1 ✅ (2026-06-24):** `katastasi web` → loopback `node:http` server + self-contained SPA shell
+  (step rail) + working **Connect** step (`/api/env` get-status / write-`.env`). Endpoints unit-tested
+  over a real ephemeral server.
+- **Next:** slice 2 = **deep discovery** (`/api/sources/discover` — epic→children+related+linked pages →
+  confirm screen), then pull → design → sync.

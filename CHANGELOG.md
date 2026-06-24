@@ -31,9 +31,13 @@ A guided idea→dev-ready-pack flow (design: [docs/WIZARD-DESIGN.md](docs/WIZARD
   phases (per-design): per-endpoint data-flow diagrams, dependency task ordering, curl id-sourcing,
   approve/verify export, requirement-change diff.
 
-## [Unreleased] — DB-changes + agent skills
+## [Unreleased] — DB-changes + agent skills + web wizard (slice 1)
 
 ### Added
+- **`katastasi web`** (slice 1) — a 100%-local browser onboarding wizard (no login): a loopback
+  `node:http` server + a self-contained page with the step rail and a working **Connect** step that
+  saves Atlassian/GitHub creds to the local `.env` (tokens never leave the machine). Design:
+  [docs/WEB-WIZARD-DESIGN.md](docs/WEB-WIZARD-DESIGN.md). Next slices: discover → pull → design → sync.
 - **DB / migration changes** — the wizard asks "does this feature need DB changes?" (`--db-changes`);
   on yes, `analyze` enumerates every required migration into a "Database / migration changes" checklist
   in the technical-analysis doc (→ Confluence) + the feature pack, so the list is ready at migration time.
