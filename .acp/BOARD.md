@@ -1,6 +1,6 @@
 # Katastasi — Board
 
-_32 task(s) · 9 done · 0 ⚠️ drift._
+_32 task(s) · 10 done · 0 ⚠️ drift._
 
 ## todo (21)
 
@@ -26,16 +26,15 @@ _32 task(s) · 9 done · 0 ⚠️ drift._
 - **TASK-22** Retire legacy docs/Tasks/*.md into .acp/tasks (stale IN_PROGRESS/COMPLETED) · KAT-3
 - **TASK-32** dloizides.com front page for the wizard (static, documents the npx command) · KAT-10
 
-## in-progress (2)
+## in-progress (1)
 
 - **TASK-1** Dogfood Katastasi on its own repo: acp-trace.json + .acp store + board · KAT-9, KAT-3
-- **TASK-30** Local web wizard (npx katastasi serve): browser onboarding, 100% local, no login · KAT-10
 
 ## blocked (0)
 
 _(none)_
 
-## done (9)
+## done (10)
 
 - **TASK-6** Phase 3 v1: safe one-way sync + conflict flag (0.5.0) · KAT-5 ✅
 - **TASK-23** Feature wizard slice 1: CLI + HTML feature pack + auth guide + MCP · KAT-10 ✅
@@ -45,4 +44,5 @@ _(none)_
 - **TASK-27** Wizard phase 5: requirement-change diff (re-run shows what moved) · KAT-10 ✅
 - **TASK-28** Wizard: gated DB/migration changes in the feature doc · KAT-10 ✅
 - **TASK-29** Agent skills for all actions + init-skills generator (Claude + Copilot) · KAT-10 ✅
+- **TASK-30** Local web wizard (npx katastasi serve): browser onboarding, 100% local, no login · KAT-10 ✅
 - **TASK-31** Web wizard: Jira epic / Confluence page DISCOVERY (list to pick from) · KAT-10 ✅

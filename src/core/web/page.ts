@@ -89,6 +89,17 @@ export function renderWizardPage(): string {
       </section>
       <div id="design-result"></div>
     </div>
+
+    <div id="sync-wrap" style="display:none">
+      <h1 style="margin-top:1.2em">Sync</h1>
+      <p class="sub">Reconcile your local tasks with Jira / GitHub issues. Preview shows what would change; Apply writes it (conflicts are flagged, never overwritten). Needs a <code>sync</code> block in <code>acp-trace.json</code> + creds from Connect.</p>
+      <section class="card">
+        <button id="sync-preview-btn">Preview</button>
+        <button id="sync-apply-btn" style="background:#2ea043">Apply</button>
+        <span id="sync-msg" class="muted" style="margin-left:10px"></span>
+      </section>
+      <div id="sync-result"></div>
+    </div>
   </main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -161,9 +172,34 @@ export function renderWizardPage(): string {
     msg.textContent = 'analysing… (this calls the AI)';
     fetch('/api/design', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ feature: feature, dbChanges: document.getElementById('feat-db').checked }) })
       .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
-      .then(function(res){ if (!res.ok) { msg.textContent = res.d.error || 'failed'; return; } msg.textContent = ''; document.querySelector('nav li[data-step="design"]').className='done'; renderDesign(res.d); })
+      .then(function(res){ if (!res.ok) { msg.textContent = res.d.error || 'failed'; return; } msg.textContent = ''; document.querySelector('nav li[data-step="design"]').className='done'; renderDesign(res.d); document.getElementById('sync-wrap').style.display='block'; document.querySelector('nav li[data-step="sync"]').className='active'; })
       .catch(function(){ msg.textContent = 'request failed'; });
   });
+
+  // ── Sync ──
+  function renderSync(d){
+    var box = document.getElementById('sync-result');
+    if (!d.configured){ box.innerHTML = '<section class="card muted">'+escapeHtml(d.message||'not configured')+'</section>'; return; }
+    var h = '<p class="muted">'+(d.applied?'Applied':'Preview')+'</p>';
+    h += list(d.results, function(r){
+      if (r.error) return '<section class="card"><b>'+escapeHtml(r.bindingId)+'</b> ('+escapeHtml(r.remoteType)+') — <span style="color:var(--bad)">'+escapeHtml(r.error)+'</span></section>';
+      var s = r.summary;
+      var line = '↑'+(s.push+s['create-remote'])+' pushed · ↓'+(s.pull+s['pull-create'])+' pulled · ='+(s.skip+s.converged)+' in-sync · ⚠️'+s.conflict+' conflict';
+      var links = list(r.links, function(l){ return '<li class="muted">linked '+escapeHtml(l.key)+' ↔ '+escapeHtml(l.remoteId)+(l.url?' <a href="'+escapeHtml(l.url)+'" target="_blank">open</a>':'')+'</li>'; });
+      var confs = list(r.conflicts, function(c){ return '<li style="color:var(--bad)">⚠️ conflict '+escapeHtml(c.key||c.remoteId||'')+' ['+escapeHtml((c.fields||[]).join(', '))+']</li>'; });
+      return '<section class="card"><b>'+escapeHtml(r.bindingId)+'</b> ('+escapeHtml(r.remoteType)+'): '+line+'<ul style="margin:.4em 0">'+links+confs+'</ul></section>';
+    });
+    box.innerHTML = h;
+  }
+  function runSyncReq(apply){
+    var msg = document.getElementById('sync-msg'); msg.textContent = apply?'applying…':'previewing…';
+    fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ apply: apply }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){ if (!res.ok){ msg.textContent = res.d.error||'failed'; return; } msg.textContent=''; if (apply && res.d.configured) document.querySelector('nav li[data-step="sync"]').className='done'; renderSync(res.d); })
+      .catch(function(){ msg.textContent = 'request failed'; });
+  }
+  document.getElementById('sync-preview-btn').addEventListener('click', function(){ runSyncReq(false); });
+  document.getElementById('sync-apply-btn').addEventListener('click', function(){ runSyncReq(true); });
 
   document.getElementById('pull-btn').addEventListener('click', function(){
     var all = []; try { all = JSON.parse(localStorage.getItem('katastasi-web:discovered') || '[]'); } catch(e){}

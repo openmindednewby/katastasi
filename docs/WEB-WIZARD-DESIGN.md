@@ -102,4 +102,9 @@ from the SPA beyond sync; a packaged desktop app (Electron) — `npx` covers it.
   runs `runWizard` (system design + DB-changes gate + ordered tasks + tests + curls) and returns the
   FeaturePack. SPA Design step: feature name + "needs DB changes?" → Generate → renders the pack inline
   (mermaid via CDN) + a link to the full `feature-pack.html`.
-- **Next:** slice 5 = **Sync** (run `sync` from the wizard), then the `dloizides.com` front page.
+- **Slice 5 ✅ (2026-06-24):** **Sync** — `POST /api/sync {apply?,direction?,binding?}` runs `runSync`
+  with creds (`env: readEnvValues`) + adapters from the saved `.env` (injectable for tests); reports
+  configured:false with guidance when no `sync` block exists. SPA Sync step: Preview / Apply →
+  per-binding summary (↑pushed ↓pulled =in-sync ⚠️conflict) + links + conflicts.
+- **Wizard core COMPLETE** (Connect → Source → Select → Download → Design → Sync, all in the browser,
+  100% local). **Remaining:** the optional `dloizides.com` front page.
