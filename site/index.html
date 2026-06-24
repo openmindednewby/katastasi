@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Katastasi — local-first feature onboarding for devs</title>
+  <meta name="description" content="Katastasi turns a Jira epic or Confluence page into a dev-ready feature pack — system design, DB changes, ordered tasks, tests, curls — all on your own machine. No login, no SaaS. One command: npx katastasi web.">
+  <link rel="canonical" href="https://katastasi.dloizides.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Katastasi — local-first feature onboarding">
+  <meta property="og:description" content="Paste a Jira/Confluence link → system design + DB changes + ordered tasks + tests + curls. 100% local, no login. npx katastasi web.">
+  <meta property="og:url" content="https://katastasi.dloizides.com/">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- Analytics: add the Umami snippet here once the site has a website-id (see /analytics). -->
+  <style>
+    :root{--bg:#0f1115;--card:#191c23;--ink:#e7e9ee;--muted:#9aa3b2;--accent:#5b8def;--ok:#3fb950;--line:#2a2f3a}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,Segoe UI,Roboto,sans-serif}
+    a{color:var(--accent)} code,kbd{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .wrap{max-width:920px;margin:0 auto;padding:0 22px}
+    header{padding:22px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line)}
+    header b{font-size:18px} header nav a{margin-left:18px;color:var(--muted);text-decoration:none}
+    .hero{padding:72px 0 28px;text-align:center}
+    .hero h1{font-size:40px;line-height:1.15;margin:.1em 0 .3em}
+    .hero p{font-size:19px;color:var(--muted);max-width:680px;margin:0 auto 1.6em}
+    .cmd{display:inline-flex;align-items:center;gap:12px;background:#0c0e12;border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-size:17px}
+    .cmd code{color:var(--ok)} .cmd .copy{cursor:pointer;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:.15em .55em;font-size:13px}
+    .badges{margin-top:14px;color:var(--muted);font-size:14px}
+    .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:40px 0}
+    .flow div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;font-size:14px}
+    .flow b{display:block;color:var(--accent);font-size:13px;letter-spacing:.04em}
+    h2{margin:48px 0 14px;font-size:24px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+    .grid section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+    .grid h3{margin:.1em 0 .4em;font-size:17px} .grid p{margin:0;color:var(--muted);font-size:15px}
+    .pill{display:inline-block;background:#162033;border:1px solid var(--line);border-radius:999px;padding:.15em .7em;font-size:13px;color:#bcd}
+    footer{margin:56px 0 40px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <b>Katastasi</b>
+    <nav>
+      <a href="https://github.com/openmindednewby/katastasi">GitHub</a>
+      <a href="https://www.npmjs.com/package/katastasi">npm</a>
+      <a href="https://github.com/openmindednewby/katastasi/blob/master/docs/WEB-WIZARD-DESIGN.md">Docs</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <span class="pill">100% local · no login · open source</span>
+    <h1>Onboard onto any feature in one command</h1>
+    <p>Paste a Jira epic or Confluence page and Katastasi builds the whole dev-ready pack — system design, database changes, ordered tasks, tests and ready-to-run curls — right on your machine. Nothing is uploaded anywhere.</p>
+    <div class="cmd"><code>npx katastasi web</code><span class="copy" id="copy" data-cmd="npx katastasi web">copy</span></div>
+    <div class="badges">opens <code>http://localhost:8799</code> in your browser · your data stays in your repo</div>
+  </section>
+
+  <div class="flow">
+    <div><b>1 · CONNECT</b>creds → local .env</div>
+    <div><b>2 · SOURCE</b>paste a Jira/Confluence URL</div>
+    <div><b>3 · SELECT</b>confirm what's discovered</div>
+    <div><b>4 · DOWNLOAD</b>pull as markdown</div>
+    <div><b>5 · DESIGN</b>AI: diagram + DB + tasks</div>
+    <div><b>6 · SYNC</b>status ⇄ Jira / GitHub</div>
+  </div>
+
+  <h2>Why teams use it</h2>
+  <div class="grid">
+    <section><h3>Local-first, no SaaS</h3><p>A tiny server runs on the developer's PC. Credentials live in a local <code>.env</code>; requirements and tasks are markdown in the repo. No accounts, no upload.</p></section>
+    <section><h3>Deep discovery</h3><p>Paste one epic — it pulls the child issues, related Confluence pages, and anything linked in the descriptions, for you to confirm.</p></section>
+    <section><h3>System design + DB changes</h3><p>An end-to-end data-flow diagram, plus an enumerated list of every migration the feature needs in production.</p></section>
+    <section><h3>Tasks a junior can run</h3><p>Dependency-ordered tasks with the code, Jira and Confluence context inline — plus tests and ready-made curls to verify.</p></section>
+    <section><h3>Two-way sync, never lost</h3><p>Reconcile tasks with Jira/GitHub issues 3-way; conflicting edits are flagged, never overwritten.</p></section>
+    <section><h3>Agent-native</h3><p>An MCP server + drop-in Claude/Copilot skills (<code>katastasi init-skills</code>) so your AI tools drive every step.</p></section>
+  </div>
+
+  <h2>Get started</h2>
+  <p>You'll need an <a href="https://id.atlassian.com/manage-profile/security/api-tokens">Atlassian API token</a> (for Jira/Confluence) and an AI key (OpenAI or a GitHub token) for the design step. Then:</p>
+  <div class="cmd"><code>npx katastasi web</code></div>
+  <p style="color:var(--muted)">Prefer the source? <code>git clone https://github.com/openmindednewby/katastasi</code> then <code>npm start</code>. Full setup: <a href="https://github.com/openmindednewby/katastasi/blob/master/docs/SOURCES_SETUP.md">SOURCES_SETUP.md</a>.</p>
+
+  <footer>
+    <span>Katastasi — MIT licensed · documentation, task-tracking &amp; testing toolkit.</span>
+    <span><a href="https://github.com/openmindednewby/katastasi">github.com/openmindednewby/katastasi</a></span>
+  </footer>
+</div>
+<script>
+  document.getElementById('copy').addEventListener('click', function(){
+    var b = this; navigator.clipboard.writeText(b.getAttribute('data-cmd')).then(function(){ b.textContent = 'copied'; setTimeout(function(){ b.textContent = 'copy'; }, 1200); });
+  });
+</script>
+</body>
+</html>

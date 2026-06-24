@@ -1,7 +1,7 @@
 ---
 id: TASK-32
 title: dloizides.com front page for the wizard (static, documents the npx command)
-status: todo
+status: done
 requirements: [KAT-10]
 tests: []
 assignee: ~
