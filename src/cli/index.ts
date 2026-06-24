@@ -33,6 +33,7 @@ import type { Task } from '../core/trace/tasks/model.js';
 import { runAcceptance } from '../core/trace/acceptance/orchestrate.js';
 import { runWizard, wizardCheck, ensureRequirementsDoc, type WizardSource } from '../core/wizard/wizard.js';
 import { runSync, syncLinks } from '../core/sync/sync.js';
+import { installSkills } from '../core/skills/install.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -588,6 +589,22 @@ async function collectWizardAnswers(opts: { feature?: string; source?: string; r
     rl.close();
   }
 }
+
+program
+  .command('init-skills')
+  .description('Install the Katastasi agent skills into this repo (.claude/skills/* + .github/copilot-instructions.md) so Claude & Copilot can drive every action.')
+  .option('--dir <path>', 'target repo directory', '.')
+  .action((opts) => {
+    try {
+      const target = resolve(opts.dir);
+      const { written } = installSkills(target);
+      process.stdout.write(`\n  Installed ${written.length} file(s) into ${opts.dir}:\n`);
+      written.forEach((w) => process.stdout.write(`    + ${w}\n`));
+      process.stdout.write('\n  Claude Code & Copilot can now run: onboard · design · sync · trace · test · tasks.\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
 
 const syncCmd = program
   .command('sync')

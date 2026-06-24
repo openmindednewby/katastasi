@@ -43,6 +43,9 @@ The core conversion + REST logic lives in `src/core/` and is plain TypeScript wi
   `test_run`. See [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
 - **Tasks** — local markdown task tracking (`katastasi task …`) linked to requirements + tests, with a
   done-but-not-verified ⚠️ drift check. See [docs/PHASE-1-DESIGN.md](docs/PHASE-1-DESIGN.md).
+- **Agent skills** — `katastasi init-skills` installs per-action skills into any repo
+  (`.claude/skills/*` + `.github/copilot-instructions.md`) so Claude Code & Copilot run onboard / design /
+  sync / trace / test / tasks as one-liners. Run once per service.
 - **Bidirectional sync** — `katastasi sync`: reconcile `.acp/tasks ⇄ GitHub issues / Jira` 3-way
   (base/local/remote), revision-tracked, status round-trip (done⇄closed). Preview by default; `--apply`
   to write; conflicts flagged to `.acp/sync/conflicts/`, never clobbered. MCP `sync_preview`/`sync_apply`.

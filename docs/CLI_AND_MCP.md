@@ -220,6 +220,19 @@ katastasi sync status          # recorded task↔remote links (no network)
 `--fail-on none|conflict`. Configure via a `sync` block in `acp-trace.json`; creds from env
 (`GITHUB_TOKEN` / `JIRA_*`).
 
+### Agent skills (`katastasi init-skills`)
+
+Install Katastasi skills into any repo so Claude Code + GitHub Copilot can drive every action as
+one-liners:
+
+```bash
+katastasi init-skills              # into the current repo
+katastasi init-skills --dir ../other-service
+```
+
+Writes `.claude/skills/katastasi-{onboard,design,sync,trace,test,tasks}/SKILL.md` and a Katastasi block
+in `.github/copilot-instructions.md` (idempotent — re-running refreshes it). Run it once per service.
+
 ## MCP server (for Claude / agents)
 
 The server exposes two tools that take **raw markdown strings** (what an agent has in memory):

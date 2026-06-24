@@ -31,6 +31,16 @@ A guided idea→dev-ready-pack flow (design: [docs/WIZARD-DESIGN.md](docs/WIZARD
   phases (per-design): per-endpoint data-flow diagrams, dependency task ordering, curl id-sourcing,
   approve/verify export, requirement-change diff.
 
+## [Unreleased] — DB-changes + agent skills
+
+### Added
+- **DB / migration changes** — the wizard asks "does this feature need DB changes?" (`--db-changes`);
+  on yes, `analyze` enumerates every required migration into a "Database / migration changes" checklist
+  in the technical-analysis doc (→ Confluence) + the feature pack, so the list is ready at migration time.
+- **`katastasi init-skills`** — install agent skills into any repo (`.claude/skills/*` +
+  `.github/copilot-instructions.md`) so Claude Code & Copilot drive every action (onboard / design / sync
+  / trace / test / tasks) as one-liners. Idempotent; run once per service.
+
 ## [Unreleased] — Bidirectional sync v1 (Phase 3)
 
 A 3-way reconciler for `.acp/tasks ⇄ GitHub issues / Jira` — never silently loses an edit
