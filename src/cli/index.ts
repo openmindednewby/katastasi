@@ -648,7 +648,7 @@ const syncCmd = program
           continue;
         }
         const s = r.summary;
-        process.stdout.write(`  ${r.bindingId} (${r.remoteType}): ↑${s.push + s['create-remote']} pushed · ↓${s.pull + s['pull-create']} pulled · =${s.skip + s.converged} in-sync · ⚠️${s.conflict} conflict\n`);
+        process.stdout.write(`  ${r.bindingId} (${r.remoteType}): ↑${s.push + s['create-remote']} pushed · ↓${s.pull + s['pull-create']} pulled · ⇄${s.merge} merged · =${s.skip + s.converged} in-sync · ⚠️${s.conflict} conflict\n`);
         r.links.forEach((l) => process.stdout.write(`      linked ${l.key} ↔ ${l.remoteId}${l.url ? ` (${l.url})` : ''}\n`));
         r.conflicts.forEach((c) => process.stdout.write(`      ⚠️ conflict ${c.key ?? c.remoteId} [${(c.fields ?? []).join(', ')}]${c.file ? ` → ${relative(baseDir, c.file)}` : ''}\n`));
         r.flags.forEach((f) => process.stdout.write(`      ⚑ ${f.action} ${f.key ?? f.remoteId}\n`));

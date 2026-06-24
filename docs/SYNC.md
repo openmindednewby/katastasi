@@ -82,8 +82,9 @@ apply the sync and report pushes / pulls / conflicts.
 ## Scope (v1) & what's next
 
 - v1 binds **`.acp/tasks` ⇄ GitHub issues / Jira** with title + body + labels + status; **combined
-  safe-both**; conflict-flagging (no auto-merge yet).
-- **v2** — field-level auto-merge (both sides changed but *different* fields → merge automatically; only
-  same-field divergence stays a conflict).
+  safe-both**; conflict-flagging.
+- **v2 ✅** — **field-level auto-merge**: set `sync.mergeStrategy: "field-merge"` in `acp-trace.json` and
+  when both sides changed *different* fields they merge automatically (each side's field wins); only a
+  *same-field* divergence stays a conflict. Default stays `conflict-flag`.
 - **v3** — interactive conflict resolution (`sync resolve --take local|remote`).
 - Confluence docs and requirement bindings come after. Design: **[PHASE-3-DESIGN.md](PHASE-3-DESIGN.md)**.

@@ -310,7 +310,7 @@ function syncToolHandler(apply: boolean) {
       const lines = results.map((r) => {
         if (r.error) return `✗ ${r.bindingId} (${r.remoteType}): ${r.error}`;
         const s = r.summary;
-        return `${r.bindingId} (${r.remoteType}): ↑${s.push + s['create-remote']} pushed · ↓${s.pull + s['pull-create']} pulled · =${s.skip + s.converged} in-sync · ⚠️${s.conflict} conflict`;
+        return `${r.bindingId} (${r.remoteType}): ↑${s.push + s['create-remote']} pushed · ↓${s.pull + s['pull-create']} pulled · ⇄${s.merge} merged · =${s.skip + s.converged} in-sync · ⚠️${s.conflict} conflict`;
       });
       lines.push(apply ? 'Applied. Conflicts (if any) are in .acp/sync/conflicts/.' : 'Preview only — call sync_apply to write.');
       return {

@@ -102,6 +102,31 @@ export async function executeSync(
         if (opts.apply && item.key && item.remoteId && item.remoteRev && item.local) baseline(item.key, item.remoteId, item.remoteRev, item.local);
         continue;
       }
+      if (item.action === 'merge') {
+        // a field-merge writes BOTH sides, so it needs the full direction.
+        if (opts.direction !== 'both') {
+          if (opts.apply) {
+            const file = writeConflictFile(opts, item, ['(field-merge needs both directions)']);
+            res.conflicts.push({ key: item.key, remoteId: item.remoteId, fields: ['merge'], file });
+          }
+          continue;
+        }
+        if (!opts.apply) continue; // preview: counted in summary
+        if (item.key && item.path && item.remoteId && item.merged) {
+          try {
+            const updated = await adapter.update(item.remoteId, item.merged, item.remoteRev ?? '');
+            writeRecordToTask(item.path, item.merged, opts.today, mapper);
+            baseline(item.key, updated.id, updated.rev, item.merged);
+          } catch (err) {
+            if (err instanceof RevisionConflict) {
+              const fresh = await adapter.read(item.remoteId);
+              const file = writeConflictFile(opts, { ...item, remote: fresh.fields }, ['(remote changed mid-merge)']);
+              res.conflicts.push({ key: item.key, remoteId: item.remoteId, fields: ['concurrent'], file });
+            } else throw err;
+          }
+        }
+        continue;
+      }
       if (!allows(opts.direction, item.action)) continue; // direction-restricted
       if (!opts.apply) continue; // preview: count only (summary already has it)
 
