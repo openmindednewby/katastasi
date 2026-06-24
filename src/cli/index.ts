@@ -32,6 +32,7 @@ import type { TaskVerification } from '../core/trace/tasks/verify.js';
 import type { Task } from '../core/trace/tasks/model.js';
 import { runAcceptance } from '../core/trace/acceptance/orchestrate.js';
 import { runWizard, wizardCheck, ensureRequirementsDoc, type WizardSource } from '../core/wizard/wizard.js';
+import { runSync, syncLinks } from '../core/sync/sync.js';
 import { serve } from '../core/trace/serve.js';
 import { serveCollector } from '../core/trace/collector.js';
 import { generateQuestions } from '../core/questions/generate.js';
@@ -585,6 +586,63 @@ async function collectWizardAnswers(opts: { feature?: string; source?: string; r
     rl.close();
   }
 }
+
+const syncCmd = program
+  .command('sync')
+  .description('Bidirectional sync of .acp/tasks ⇄ GitHub issues / Jira (3-way, conflict-flagging). Preview by default; --apply to write.')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .option('--apply', 'actually write (default is a read-only preview)', false)
+  .option('--push-only', 'only push local-only changes (skip pulls)', false)
+  .option('--pull-only', 'only pull remote-only changes (skip pushes)', false)
+  .option('--binding <id>', 'run only this binding')
+  .option('--fail-on <level>', 'exit non-zero on: none | conflict', 'none')
+  .action(async (opts) => {
+    try {
+      const configPath = resolve(opts.config);
+      const baseDir = dirname(configPath);
+      const config = loadTraceConfig(configPath);
+      const direction = opts.pushOnly ? 'push' : opts.pullOnly ? 'pull' : 'both';
+      process.stdout.write(`\n  Sync (${opts.apply ? 'APPLY' : 'preview'}, ${direction})\n`);
+
+      const results = await runSync(config, baseDir, { apply: opts.apply, direction, binding: opts.binding });
+      let conflicts = 0;
+      for (const r of results) {
+        if (r.error) {
+          process.stdout.write(`  ✗ ${r.bindingId} (${r.remoteType}): ${r.error}\n`);
+          continue;
+        }
+        const s = r.summary;
+        process.stdout.write(`  ${r.bindingId} (${r.remoteType}): ↑${s.push + s['create-remote']} pushed · ↓${s.pull + s['pull-create']} pulled · =${s.skip + s.converged} in-sync · ⚠️${s.conflict} conflict\n`);
+        r.links.forEach((l) => process.stdout.write(`      linked ${l.key} ↔ ${l.remoteId}${l.url ? ` (${l.url})` : ''}\n`));
+        r.conflicts.forEach((c) => process.stdout.write(`      ⚠️ conflict ${c.key ?? c.remoteId} [${(c.fields ?? []).join(', ')}]${c.file ? ` → ${relative(baseDir, c.file)}` : ''}\n`));
+        r.flags.forEach((f) => process.stdout.write(`      ⚑ ${f.action} ${f.key ?? f.remoteId}\n`));
+        conflicts += r.conflicts.length;
+      }
+      if (!opts.apply) process.stdout.write('\n  Preview only — re-run with --apply to write.\n');
+      process.exit(opts.failOn === 'conflict' && conflicts > 0 ? 1 : 0);
+    } catch (err) {
+      fail(err);
+    }
+  });
+
+syncCmd
+  .command('status')
+  .description('Show the recorded task↔remote links (no network).')
+  .option('--config <path>', 'config file', DEFAULT_CONFIG_FILENAME)
+  .action((opts) => {
+    try {
+      const configPath = resolve(opts.config);
+      const links = syncLinks(loadTraceConfig(configPath), dirname(configPath));
+      process.stdout.write('\n');
+      for (const b of links) {
+        process.stdout.write(`  ${b.bindingId}: ${b.links.length} link(s)\n`);
+        b.links.forEach((l) => process.stdout.write(`    ${l.key} ↔ ${l.remoteId}${l.lastSyncedAt ? `  (${l.lastSyncedAt})` : ''}\n`));
+      }
+      if (!links.length) process.stdout.write('  (no sync bindings configured)\n');
+    } catch (err) {
+      fail(err);
+    }
+  });
 
 const wizardCmd = program
   .command('wizard')

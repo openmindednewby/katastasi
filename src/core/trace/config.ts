@@ -115,6 +115,39 @@ export const traceConfigSchema = z.object({
       fixtures: z.record(z.string()).optional(),
     })
     .optional(),
+  /**
+   * Bidirectional sync (Phase 3). Each binding reconciles a local record set (`.acp/tasks`) with a
+   * remote (GitHub issues / Jira). Credentials come from env (GITHUB_TOKEN, JIRA_*); `statusMap` maps
+   * local status → remote (e.g. `{ "done": "closed" }`). Preview by default; `--apply` to write.
+   */
+  sync: z
+    .object({
+      bindings: z
+        .array(
+          z.object({
+            id: z.string(),
+            dir: z.string().optional(), // local tasks dir (default .acp/tasks)
+            idPrefix: z.string().optional(), // id prefix for pulled-in tasks (default TASK)
+            statusMap: z.record(z.string()).optional(),
+            remote: z.discriminatedUnion('type', [
+              z.object({
+                type: z.literal('github'),
+                repo: z.string(), // owner/name
+                labelFilter: z.string().optional(),
+                baseUrl: z.string().optional(),
+              }),
+              z.object({
+                type: z.literal('jira'),
+                jql: z.string(),
+                projectKey: z.string().optional(),
+                issueType: z.string().optional(),
+              }),
+            ]),
+          }),
+        )
+        .min(1),
+    })
+    .optional(),
   /** Run history: where git-stamped snapshots are stored + an optional named baseline to diff against. */
   history: z
     .object({ dir: z.string().optional(), baseline: z.string().optional(), keep: z.number().optional() })

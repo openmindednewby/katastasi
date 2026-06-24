@@ -22,6 +22,7 @@ import { loadTraceConfig } from '../core/trace/config.js';
 import { runTrace, renderAll, requirementStatus, gatherRequirements } from '../core/trace/index.js';
 import { runAcceptance } from '../core/trace/acceptance/orchestrate.js';
 import { runWizard } from '../core/wizard/wizard.js';
+import { runSync } from '../core/sync/sync.js';
 import { resolveStoreDir } from '../core/trace/store.js';
 import { resolveTasksConfig } from '../core/trace/config.js';
 import { addTask, listTasksFiltered, getTask, setTaskStatus, linkTask } from '../core/trace/tasks/ops.js';
@@ -299,6 +300,61 @@ server.registerTool(
       return errorResult(err);
     }
   },
+);
+
+function syncToolHandler(apply: boolean) {
+  return async (args: { configPath?: string; direction?: 'both' | 'push' | 'pull'; binding?: string }) => {
+    try {
+      const configPath = resolve(args.configPath ?? 'acp-trace.json');
+      const results = await runSync(loadTraceConfig(configPath), dirname(configPath), { apply, direction: args.direction, binding: args.binding });
+      const lines = results.map((r) => {
+        if (r.error) return `✗ ${r.bindingId} (${r.remoteType}): ${r.error}`;
+        const s = r.summary;
+        return `${r.bindingId} (${r.remoteType}): ↑${s.push + s['create-remote']} pushed · ↓${s.pull + s['pull-create']} pulled · =${s.skip + s.converged} in-sync · ⚠️${s.conflict} conflict`;
+      });
+      lines.push(apply ? 'Applied. Conflicts (if any) are in .acp/sync/conflicts/.' : 'Preview only — call sync_apply to write.');
+      return {
+        content: [{ type: 'text' as const, text: lines.join('\n') }],
+        structuredContent: { applied: apply, bindings: results.map((r) => ({ id: r.bindingId, summary: r.summary, conflicts: r.conflicts.length, links: r.links.length, error: r.error })) },
+      };
+    } catch (err) {
+      return errorResult(err);
+    }
+  };
+}
+
+server.registerTool(
+  'sync_preview',
+  {
+    title: 'Preview bidirectional sync (no writes)',
+    description:
+      'Reconcile .acp/tasks ⇄ GitHub issues / Jira (3-way: base/local/remote) and report what WOULD happen ' +
+      '— pushes, pulls, creates, and conflicts — without writing anything. Use sync_apply to perform it. ' +
+      'Credentials come from env (GITHUB_TOKEN / JIRA_*).',
+    inputSchema: {
+      configPath: z.string().optional().describe('Path to acp-trace.json (default ./acp-trace.json).'),
+      direction: z.enum(['both', 'push', 'pull']).optional().describe('Restrict direction (default both).'),
+      binding: z.string().optional().describe('Run only this binding id.'),
+    },
+  },
+  syncToolHandler(false),
+);
+
+server.registerTool(
+  'sync_apply',
+  {
+    title: 'Apply bidirectional sync',
+    description:
+      'Reconcile .acp/tasks ⇄ GitHub issues / Jira and WRITE the safe changes: push local-only edits, pull ' +
+      'remote-only edits, create missing issues (linking the id back into the task), and write conflicts to ' +
+      '.acp/sync/conflicts/ (never overwriting a side that also changed). Optimistic-concurrency safe.',
+    inputSchema: {
+      configPath: z.string().optional().describe('Path to acp-trace.json (default ./acp-trace.json).'),
+      direction: z.enum(['both', 'push', 'pull']).optional().describe('Restrict direction (default both).'),
+      binding: z.string().optional().describe('Run only this binding id.'),
+    },
+  },
+  syncToolHandler(true),
 );
 
 server.registerTool(
