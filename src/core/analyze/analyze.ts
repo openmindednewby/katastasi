@@ -29,6 +29,10 @@ export interface AnalyzeTask {
   tests: AnalyzeTaskTest[];
   /** Executable acceptance cases (Phase 2): raw authoring cases `{ name, steps:[…] }` for the runner. */
   acceptanceTests?: unknown[];
+  /** Keys of tasks that must be done first (used to dependency-order the wizard's task list). */
+  dependsOn?: string[];
+  /** Relevant code file paths to read/modify for this task (inline context for the executing agent). */
+  files?: string[];
 }
 export interface AnalyzeOutput {
   gapAnalysis: string;
@@ -84,6 +88,8 @@ produce a precise technical gap analysis and a development-ready breakdown. Resp
     { "key": "<requirement key, reuse the given keys>", "title": "<short>",
       "acceptanceCriteria": ["<testable criterion>", "..."],
       "flowMermaid": "<a mermaid 'flowchart TD' body ONLY (no fences) for THIS use-case/endpoint's DATA FLOW: request → handler → service → datastore → response, with labelled edges and the validation/branch points (e.g. valid? -->|no| 401). One diagram per task.>",
+      "dependsOn": ["<keys of other tasks that MUST be implemented before this one; [] if none>"],
+      "files": ["<relevant existing code file paths the implementer should read/modify, from the codebase shown>"],
       "tests": [ { "tech": "playwright", "title": "<e2e test name>" }, { "tech": "jest", "title": "<unit test name>" } ],
       "acceptanceTests": [ { "name": "<case>", "steps": [ { "POST": "/path", "body": {}, "expect": { "status": 201, "json": { "$.id": "exists" } }, "capture": { "id": "$.id" } } ] } ] }
   ]
@@ -194,6 +200,8 @@ export function validateOutput(raw: unknown): AnalyzeOutput {
         ? (t as AnalyzeTask).tests.map((x) => ({ tech: String(x.tech ?? 'playwright'), title: String(x.title ?? '') }))
         : [],
       ...(Array.isArray((t as AnalyzeTask).acceptanceTests) ? { acceptanceTests: (t as AnalyzeTask).acceptanceTests } : {}),
+      ...(Array.isArray((t as AnalyzeTask).dependsOn) ? { dependsOn: (t as AnalyzeTask).dependsOn!.map((k) => String(k).toUpperCase()) } : {}),
+      ...(Array.isArray((t as AnalyzeTask).files) ? { files: (t as AnalyzeTask).files!.map(String) } : {}),
     })).filter((t) => t.key),
   };
 }

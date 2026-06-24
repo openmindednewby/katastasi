@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { renderFeaturePack, renderFeaturePackMarkdown } from '../dist/core/wizard/featurePack.js';
 import {
-  extractFirstMermaid, curlsFromAcceptance, buildFeaturePack, wizardCheck, ensureRequirementsDoc, runWizard,
+  extractFirstMermaid, curlsFromAcceptance, buildFeaturePack, wizardCheck, ensureRequirementsDoc, runWizard, orderTasks,
 } from '../dist/core/wizard/wizard.js';
 import { parseTraceConfig } from '../dist/core/trace/config.js';
 
@@ -49,6 +49,39 @@ test('ensureRequirementsDoc: scaffolds when missing, true when present', () => {
   assert.equal(ensureRequirementsDoc(dir), false); // created
   assert.ok(existsSync(join(dir, 'docs/requirements.md')));
   assert.equal(ensureRequirementsDoc(dir), true); // already there
+});
+
+test('orderTasks: dependencies come before dependents; cycles do not hang', () => {
+  const t = (key, dependsOn) => ({ key, title: key, acceptanceCriteria: [], tests: [], dependsOn });
+  const ordered = orderTasks([t('C', ['B']), t('A', []), t('B', ['A'])]).map((x) => x.key);
+  assert.deepEqual(ordered, ['A', 'B', 'C']);
+  // a cycle A<->B still returns both (guarded), no infinite loop
+  const cyc = orderTasks([t('A', ['B']), t('B', ['A'])]).map((x) => x.key);
+  assert.equal(cyc.length, 2);
+});
+
+test('buildFeaturePack: orders tasks + inlines code/req/deps context', () => {
+  const pack = buildFeaturePack({
+    feature: 'F', source: 'jira',
+    requirements: [
+      { key: 'FEAT-1', title: 'Schema', declaredStatus: null, url: 'https://jira/browse/FEAT-1' },
+      { key: 'FEAT-2', title: 'Endpoint', declaredStatus: null },
+    ],
+    analyzeResult: {
+      outDir: '/x/.acp/tech-analysis', acceptanceSpecs: [],
+      tasks: [
+        { key: 'FEAT-2', title: 'Endpoint', acceptanceCriteria: [], tests: [], dependsOn: ['FEAT-1'], files: ['src/api/login.ts'] },
+        { key: 'FEAT-1', title: 'Schema', acceptanceCriteria: [], tests: [], files: ['src/db/schema.ts'] },
+      ],
+    },
+    outDirRel: '.acp/tech-analysis',
+  });
+  assert.deepEqual(pack.tasks.map((t) => t.key), ['FEAT-1', 'FEAT-2']); // dependency-ordered
+  const ep = pack.tasks.find((t) => t.key === 'FEAT-2');
+  assert.ok(ep.context.some((c) => c === 'depends on: FEAT-1'));
+  assert.ok(ep.context.some((c) => c === 'code: src/api/login.ts'));
+  const schema = pack.tasks.find((t) => t.key === 'FEAT-1');
+  assert.ok(schema.context.some((c) => c.includes('requirement: https://jira/browse/FEAT-1')));
 });
 
 test('buildFeaturePack: assembles requirements + mermaid + tasks + curls', () => {

@@ -15,6 +15,12 @@ A guided idea→dev-ready-pack flow (design: [docs/WIZARD-DESIGN.md](docs/WIZARD
 - **`katastasi wizard check`** — credential doctor for Jira/Confluence; prints exactly what's missing.
 - **First-time auth guide** — [docs/SOURCES_SETUP.md](docs/SOURCES_SETUP.md) (Atlassian API token → `.env`).
 - **MCP `feature_wizard`** (20 tools) so a coding agent can produce the pack.
+- **System + per-use-case data-flow mermaid** — `analyze` emits an explicit end-to-end `systemDiagram`
+  (client → endpoints → services → stores, labelled edges) + a per-task data-flow; written into the
+  Confluence doc and shown first in the feature pack.
+- **Dependency-ordered, context-rich tasks** — `analyze` emits per-task `dependsOn` + relevant `files`;
+  the wizard topo-orders the tasks and inlines code files + the requirement link + prerequisites, so an
+  executing agent has everything it needs without hunting.
 
 ### Notes
 - Slice 1 wraps the existing `pull-requirements` / `analyze` / `task` / acceptance machinery. Later
