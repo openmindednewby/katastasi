@@ -92,5 +92,9 @@ from the SPA beyond sync; a packaged desktop app (Electron) — `npx` covers it.
   extractRefs + a bounded BFS following children + Jira-keys/Confluence-links found in descriptions,
   de-duplicated) over an injectable `DiscoverClient` (real `atlassianClient.ts`; fake in tests). Endpoint
   `POST /api/sources/discover`; SPA Source step (paste URL) + Select step (tick/untick what was found).
-- **Next:** slice 3 = **pull** the ticked items into `.acp/requirements/` (the Download step), then
-  design → review → sync.
+- **Slice 3 ✅ (2026-06-24):** **pull** — `src/core/web/pull.ts` `pullSelected()` writes a per-item
+  markdown file (content) + an `index.md` (Jira items as requirement checkbox lines, Confluence pages as
+  reference docs) into `.acp/requirements/`; broken items skipped. Endpoint `POST /api/pull`; SPA
+  Download step.
+- **Next:** slice 4 = **Design** (run analyze → render the FeaturePack inline, incl. DB-changes), then
+  review → sync.

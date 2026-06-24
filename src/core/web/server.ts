@@ -9,6 +9,8 @@ import { readEnvStatus, writeEnvKeys } from './envFile.js';
 import { renderWizardPage } from './page.js';
 import { discover, type DiscoverClient } from './discover.js';
 import { atlassianDiscoverClient } from './atlassianClient.js';
+import { pullSelected, type PullItem } from './pull.js';
+import { join } from 'node:path';
 
 export interface WebServerContext {
   baseDir: string;
@@ -64,6 +66,19 @@ export async function handleRequest(req: IncomingMessage, res: ServerResponse, c
       const client = ctx.discoverClient ?? atlassianDiscoverClient(ctx.baseDir);
       const items = await discover(body.url, client);
       return json(res, 200, { items });
+    }
+    if (method === 'POST' && url === '/api/pull') {
+      let body: { items?: PullItem[]; outDir?: string } = {};
+      try {
+        body = JSON.parse(await readBody(req)) as { items?: PullItem[]; outDir?: string };
+      } catch {
+        return json(res, 400, { error: 'invalid JSON body' });
+      }
+      if (!Array.isArray(body.items) || body.items.length === 0) return json(res, 400, { error: 'select at least one item to pull' });
+      const client = ctx.discoverClient ?? atlassianDiscoverClient(ctx.baseDir);
+      const outRel = body.outDir ?? '.acp/requirements';
+      const result = await pullSelected(body.items, client, join(ctx.baseDir, outRel));
+      return json(res, 200, { ...result, outDir: outRel });
     }
     if (url.startsWith('/api/')) return json(res, 404, { error: `no endpoint ${method} ${url}` });
     return send(res, 404, 'Not found', 'text/plain');

@@ -73,7 +73,10 @@ export function renderWizardPage(): string {
       <h1 style="margin-top:1.2em">Select <span class="pill" id="select-count"></span></h1>
       <p class="sub">Tick what to pull as markdown. <button id="sel-all" style="padding:.2em .6em;font-size:12px">all</button> <button id="sel-none" style="padding:.2em .6em;font-size:12px;background:#333">none</button></p>
       <section class="card"><ul id="discovered" style="list-style:none;padding:0;margin:0"></ul></section>
-      <p class="muted">Next: <b>Download</b> — pull the ticked items into <code>.acp/requirements/</code>. <span class="pill">coming in the next slice</span></p>
+      <button id="pull-btn">Download ticked → .acp/requirements/</button>
+      <span id="pull-msg" class="muted" style="margin-left:10px"></span>
+      <div id="pull-result" style="display:none"></div>
+      <p class="muted" style="margin-top:1em">Next: <b>Design</b> — run the AI analysis (system design + DB changes + ordered tasks + tests). <span class="pill">coming in the next slice</span></p>
     </div>
   </main>
 </div>
@@ -125,6 +128,28 @@ export function renderWizardPage(): string {
   });
   document.getElementById('sel-all').addEventListener('click', function(){ document.querySelectorAll('.disc').forEach(function(c){ c.checked = true; }); });
   document.getElementById('sel-none').addEventListener('click', function(){ document.querySelectorAll('.disc').forEach(function(c){ c.checked = false; }); });
+
+  document.getElementById('pull-btn').addEventListener('click', function(){
+    var all = []; try { all = JSON.parse(localStorage.getItem('katastasi-web:discovered') || '[]'); } catch(e){}
+    var picked = [];
+    document.querySelectorAll('.disc').forEach(function(c){ if (c.checked) { var it = all[parseInt(c.getAttribute('data-i'),10)]; if (it) picked.push({ type: it.type, id: it.id }); } });
+    var msg = document.getElementById('pull-msg');
+    if (!picked.length) { msg.textContent = 'tick at least one item'; return; }
+    msg.textContent = 'downloading ' + picked.length + '…';
+    fetch('/api/pull', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ items: picked }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if (!res.ok) { msg.textContent = res.d.error || 'failed'; return; }
+        msg.textContent = '';
+        document.querySelector('nav li[data-step="download"]').className = 'done';
+        var d = res.d; var box = document.getElementById('pull-result'); box.style.display = 'block';
+        box.innerHTML = '<section class="card"><b>Downloaded ' + d.written.length + ' file(s)</b> → <code>' + escapeHtml(d.outDir) + '/</code>'
+          + (d.skipped && d.skipped.length ? ' <span class="pill">' + d.skipped.length + ' skipped</span>' : '')
+          + '<ul class="muted" style="margin:.5em 0">' + d.written.map(function(w){ return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>'
+          + 'Requirements index: <code>' + escapeHtml(d.outDir) + '/' + escapeHtml(d.requirementsFile) + '</code></section>';
+      })
+      .catch(function(){ msg.textContent = 'request failed'; });
+  });
 </script>
 </body></html>
 `;
