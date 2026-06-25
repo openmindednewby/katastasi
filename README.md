@@ -33,6 +33,11 @@ roadmap.
 | **✅ Task tracking** | A local, markdown task model (`.acp/tasks`) linked to requirements and tests, usable standalone **or** imported read-only from Jira. A task marked *done* whose requirements aren't verified is flagged ⚠️ — "is done really done?" at the task level. |
 | **🧪 Testing** | Links **and** runs your existing suites (Playwright/Jest/Vitest/node/xUnit), **plus a built-in requirement-first acceptance runner** (`katastasi test` — HTTP + CLI) — all joined to requirements at the git commit → a true, per-requirement status with regression detection. |
 
+## Get started
+
+New to it? **[docs/GET_STARTED.md](docs/GET_STARTED.md)** has a copy-paste prompt for your AI agent
+(Claude Code / Copilot / Cursor) and the equivalent commands.
+
 ## Install
 
 ```bash
