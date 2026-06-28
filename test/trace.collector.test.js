@@ -52,6 +52,22 @@ test('collector: ingest stores per project; views aggregate (token-gated)', asyn
 
     // viewing without the token is blocked (not --public)
     assert.equal((await fetch(`${base}/`)).status, 401);
+
+    // a tokened visit issues an http-only cookie so navigation stays authed
+    const tokened = await fetch(`${base}/?token=s3cret`);
+    assert.equal(tokened.status, 200);
+    const setCookie = tokened.headers.get('set-cookie') ?? '';
+    assert.match(setCookie, /rtm_token=s3cret/);
+    assert.match(setCookie, /HttpOnly/i);
+    assert.match(setCookie, /SameSite=Lax/i);
+
+    // subsequent navigation with ONLY the cookie (no ?token=) stays authed
+    const viaCookie = await fetch(`${base}/p/acme-app`, { headers: { cookie: 'rtm_token=s3cret' } });
+    assert.equal(viaCookie.status, 200);
+    assert.match(await viaCookie.text(), /PROJ-1/);
+
+    // a wrong cookie is still rejected
+    assert.equal((await fetch(`${base}/p/acme-app`, { headers: { cookie: 'rtm_token=nope' } })).status, 401);
   } finally {
     server.closeAllConnections?.();
     await new Promise((ok) => server.close(ok));

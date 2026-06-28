@@ -96,6 +96,19 @@ export async function serveCollector(opts: CollectorOptions = {}): Promise<Serve
     return (req.headers.cookie ?? '').split(';').some((p) => p.trim() === `rtm_token=${token}`);
   }
 
+  /** True when the token arrived via ?token= or Bearer (not the cookie) — so we should (re)issue the cookie. */
+  function suppliedTokenExplicitly(req: IncomingMessage, url: URL): boolean {
+    if (!token) return false;
+    return req.headers.authorization === `Bearer ${token}` || url.searchParams.get('token') === token;
+  }
+
+  /** Persist the auth across same-origin navigations: one tokened visit sets an http-only cookie. */
+  function setAuthCookie(req: IncomingMessage, url: URL, res: ServerResponse): void {
+    if (suppliedTokenExplicitly(req, url) && token) {
+      res.setHeader('Set-Cookie', `rtm_token=${token}; Path=/; HttpOnly; SameSite=Lax`);
+    }
+  }
+
   const server = createServer((req, res) => {
     route(req, res).catch((err) => json(res, 500, { error: err instanceof Error ? err.message : String(err) }));
   });
@@ -105,6 +118,10 @@ export async function serveCollector(opts: CollectorOptions = {}): Promise<Serve
   async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const key = `${req.method} ${url.pathname}`;
+
+    // If this request carried the token via ?token= / Bearer, issue the cookie so subsequent
+    // same-origin navigations (detail pages, /api/*) stay authed without re-supplying ?token=.
+    setAuthCookie(req, url, res);
 
     if (key === 'POST /ingest') {
       if (token && !authed(req, url)) return json(res, 401, { error: 'unauthorized' });
