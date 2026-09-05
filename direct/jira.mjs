@@ -98,8 +98,9 @@ function adfToMd(node, depth = 0) {
     }
     case 'hardBreak': return '\n';
     case 'heading': return '#'.repeat(node.attrs?.level || 1) + ' ' + adfToMd(c, depth) + '\n\n';
-    case 'bulletList': case 'orderedList': case 'taskList': return adfToMd(c, depth) + '\n';
-    case 'listItem': return '  '.repeat(depth) + '- ' + adfToMd(c, depth + 1).replace(/\n\n$/, '\n').trim() + '\n';
+    case 'bulletList': case 'taskList': return adfToMd(c, depth) + '\n';
+    case 'orderedList': { const start = node.attrs?.order ?? 1; return (c || []).map((li, i) => listItemMd(li, depth, (start + i) + '. ')).join('') + '\n'; }
+    case 'listItem': return listItemMd(node, depth, '- ');
     case 'taskItem': return '  '.repeat(depth) + '- [' + (node.attrs?.state === 'DONE' ? 'x' : ' ') + '] ' + adfToMd(c, depth).trim() + '\n';
     case 'codeBlock': return '```' + (node.attrs?.language || '') + '\n' + adfToMd(c, depth) + '\n```\n\n';
     case 'blockquote': return adfToMd(c, depth).split('\n').map(l => l ? '> ' + l : '').join('\n') + '\n';
@@ -110,11 +111,19 @@ function adfToMd(node, depth = 0) {
     case 'inlineCard': return node.attrs?.url || '[card]';
     case 'emoji': return node.attrs?.text || node.attrs?.shortName || '';
     case 'status': return '[' + (node.attrs?.text || '') + ']';
-    case 'table': return adfToMd(c, depth) + '\n';
+    case 'table': {
+      const rows = (c || []).map(r => adfToMd(r, depth));
+      const cols = ((c || [])[0]?.content || []).length;
+      if (rows.length && cols) rows.splice(1, 0, '| ' + Array(cols).fill('---').join(' | ') + ' |\n');
+      return rows.join('') + '\n';
+    }
     case 'tableRow': return '| ' + (c || []).map(cell => adfToMd(cell.content, depth).replace(/\n+/g, ' ').trim()).join(' | ') + ' |\n';
     case 'tableHeader': case 'tableCell': return adfToMd(c, depth);
     default: return adfToMd(c, depth);
   }
+}
+function listItemMd(node, depth, marker) {
+  return '  '.repeat(depth) + marker + adfToMd(node.content, depth + 1).replace(/\n\n$/, '\n').trim() + '\n';
 }
 const fmtDate = s => s ? s.slice(0, 16).replace('T', ' ') : '';
 
@@ -169,14 +178,25 @@ if (action === 'create-epic') {
     for (const l of f.issuelinks) { const o = l.outwardIssue || l.inwardIssue; const rel = l.outwardIssue ? l.type.outward : l.type.inward; out += `- ${rel}: **${o.key}** — ${o.fields?.summary} _(${o.fields?.status?.name})_\n`; }
   }
   if (f.subtasks?.length) { out += `\n## Subtasks\n\n`; for (const s of f.subtasks) out += `- **${s.key}** — ${s.fields?.summary} _(${s.fields?.status?.name})_\n`; }
-  const cr = await jira('GET', '/rest/api/3/issue/' + key + '/comment?maxResults=200&orderBy=created');
-  out += `\n## Comments (${cr.json.total || 0})\n\n`;
-  for (const cm of (cr.json.comments || [])) {
+  // Page through every comment. A silent `Comments (0)` from a failed GET would look like a
+  // complete file with nothing to say, so a non-2xx here is fatal exactly like the issue GET.
+  const comments = []; let startAt = 0, totalComments = 0;
+  for (;;) {
+    const cr = await jira('GET', '/rest/api/3/issue/' + key + '/comment?maxResults=100&orderBy=created&startAt=' + startAt);
+    if (cr.status >= 300) { console.log('FAIL comments ' + cr.status + ' ' + JSON.stringify(cr.json).slice(0, 700)); process.exit(1); }
+    const page = cr.json.comments || [];
+    totalComments = cr.json.total ?? page.length;
+    comments.push(...page); startAt += page.length;
+    if (!page.length || comments.length >= totalComments) break;
+  }
+  out += `\n## Comments (${comments.length}${comments.length < totalComments ? ' of ' + totalComments : ''})\n\n`;
+  for (const cm of comments) {
     out += `### ${cm.author?.displayName} — ${fmtDate(cm.created)}${cm.updated !== cm.created ? ' (edited ' + fmtDate(cm.updated) + ')' : ''}\n\n`;
     out += adfToMd(cm.body).trim() + '\n\n';
   }
   const dest = args[1];
   const fp = dest ? (/\.md$/i.test(dest) ? dest : path.join(dest, key + '.md')) : path.join(process.cwd(), key + '.md');
+  fs.mkdirSync(path.dirname(path.resolve(fp)), { recursive: true });
   fs.writeFileSync(fp, out, 'utf8');
-  console.log('WROTE ' + fp + ' (' + out.length + ' chars, ' + (cr.json.total || 0) + ' comments)');
+  console.log('WROTE ' + fp + ' (' + out.length + ' chars, ' + comments.length + ' comments)');
 } else if (action) console.log('unknown action:', action);
